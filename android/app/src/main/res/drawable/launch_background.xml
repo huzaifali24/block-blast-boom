@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launch screen for Android 11 and below: paper background, centred mark. -->
+<!-- Launch screen for Android 11 and below: indigo gradient, centred mark. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/splash_background" />
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="@color/splash_background_top"
+                android:endColor="@color/splash_background" />
+        </shape>
+    </item>
     <item
-        android:width="96dp"
-        android:height="96dp"
+        android:width="180dp"
+        android:height="180dp"
         android:gravity="center"
         android:drawable="@drawable/launch_mark" />
 </layer-list>

@@ -45,26 +45,31 @@ class _KodexSplashState extends State<KodexSplash>
         : 'assets/brand/kodex_logo_dark.png';
     return Scaffold(
       backgroundColor: t.background,
-      body: GestureDetector(
-        // Tap to skip.
-        onTap: _goHome,
-        behavior: HitTestBehavior.opaque,
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (context, child) {
-              final v = _c.value;
-              final fadeIn = Curves.easeOut.transform((v / .3).clamp(0, 1));
-              final fadeOut =
-                  1 - Curves.easeIn.transform(((v - .8) / .2).clamp(0, 1));
-              return Opacity(
-                opacity: fadeIn * fadeOut,
-                child: Transform.scale(scale: .9 + .1 * fadeIn, child: child),
-              );
-            },
-            child: FractionallySizedBox(
-              widthFactor: .72,
-              child: Image.asset(logo, fit: BoxFit.contain),
+      body: DecoratedBox(
+        // Same indigo gradient as the native launch screen, so the hand-off
+        // from Android's splash to Flutter is seamless.
+        decoration: BoxDecoration(gradient: t.backgroundGradient),
+        child: GestureDetector(
+          // Tap to skip.
+          onTap: _goHome,
+          behavior: HitTestBehavior.opaque,
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (context, child) {
+                final v = _c.value;
+                final fadeIn = Curves.easeOut.transform((v / .3).clamp(0, 1));
+                final fadeOut =
+                    1 - Curves.easeIn.transform(((v - .8) / .2).clamp(0, 1));
+                return Opacity(
+                  opacity: fadeIn * fadeOut,
+                  child: Transform.scale(scale: .9 + .1 * fadeIn, child: child),
+                );
+              },
+              child: FractionallySizedBox(
+                widthFactor: .72,
+                child: Image.asset(logo, fit: BoxFit.contain),
+              ),
             ),
           ),
         ),

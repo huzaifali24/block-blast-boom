@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#15171C</color>
-    <color name="splash_background">#FAFAF8</color>
+    <!-- Matches the game's Indigo theme so launch -> game has no flash. -->
+    <color name="splash_background">#1B1C5A</color>
+    <color name="splash_background_top">#4146B8</color>
 </resources>
