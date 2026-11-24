@@ -703,7 +703,7 @@ class _GameScreenState extends State<GameScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _PowerIcon(p: p, size: 76),
+                  PowerUpIcon(p: p, size: 76),
                   const SizedBox(height: 12),
                   ArcadeText('Need a ${p.label}?', size: 30),
                   const SizedBox(height: 6),
@@ -2009,44 +2009,6 @@ class _Panel extends StatelessWidget {
       );
 }
 
-class _PowerIcon extends StatelessWidget {
-  const _PowerIcon({required this.p, this.size = 54});
-  final PowerUp p;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            center: const Alignment(-.3, -.45),
-            colors: [
-              Color.lerp(p.color, Colors.white, .45)!,
-              p.color,
-              Color.lerp(p.color, Colors.black, .35)!,
-            ],
-            stops: const [0, .55, 1],
-          ),
-          border:
-              Border.all(color: Colors.white.withValues(alpha: .5), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .35),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child:
-            Icon(p.icon, color: Colors.white, size: size * .52, shadows: const [
-          Shadow(
-              color: Color(0x66000000), offset: Offset(0, 1.5), blurRadius: 2),
-        ]),
-      );
-}
-
 /// A round power-up button with its count badge (or price when empty).
 class _PowerButton extends StatelessWidget {
   const _PowerButton({
@@ -2065,7 +2027,7 @@ class _PowerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget icon = _PowerIcon(p: p);
+    Widget icon = PowerUpIcon(p: p);
     if (armed) {
       icon = Pulse(
         amount: .1,

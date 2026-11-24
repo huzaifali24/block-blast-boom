@@ -8,6 +8,7 @@ import '../game/skins.dart';
 import 'achievements.dart';
 import 'missions.dart';
 import 'music.dart';
+import 'rewards.dart';
 import 'sound.dart';
 import 'theme.dart';
 
@@ -41,6 +42,11 @@ class AppState extends ChangeNotifier {
   static const _kMusic = 'music_on';
   static const _kPowerUpPrefix = 'powerup_';
   static const _kLevelStars = 'level_stars';
+  static const _kLoginDay = 'login_last_day';
+  static const _kLoginStreak = 'login_streak_day';
+  static const _kSpinDay = 'spin_day';
+  static const _kSpinsUsed = 'spins_used';
+  static const _kAdSpinsUsed = 'ad_spins_used';
   static const _kHaptics = 'haptics_on';
   static const _kReminders = 'reminders_on';
   static const _kNotifAsked = 'notif_asked';
@@ -66,6 +72,12 @@ class AppState extends ChangeNotifier {
 
   int coins = 0;
   final Map<PowerUp, int> powerUps = {};
+
+  int? _loginLastDay;
+  int _loginStreakDay = 0;
+  int? _spinDay;
+  int _spinsUsed = 0;
+  int _adSpinsUsed = 0;
 
   /// Adventure: level number -> best stars (1..3). Absent = not cleared.
   final Map<int, int> levelStars = {};
@@ -97,6 +109,11 @@ class AppState extends ChangeNotifier {
     app.notifAsked = prefs.getBool(_kNotifAsked) ?? false;
 
     app.coins = prefs.getInt(_kCoins) ?? 0;
+    app._loginLastDay = prefs.getInt(_kLoginDay);
+    app._loginStreakDay = prefs.getInt(_kLoginStreak) ?? 0;
+    app._spinDay = prefs.getInt(_kSpinDay);
+    app._spinsUsed = prefs.getInt(_kSpinsUsed) ?? 0;
+    app._adSpinsUsed = prefs.getInt(_kAdSpinsUsed) ?? 0;
     app.levelStars.clear();
     for (final e in prefs.getStringList(_kLevelStars) ?? const <String>[]) {
       final parts = e.split(':');
@@ -158,6 +175,82 @@ class AppState extends ChangeNotifier {
     if (amount == 0) return;
     coins += amount;
     _prefs.setInt(_kCoins, coins);
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------- rewards
+
+  /// Overridable clock so tests can move through days.
+  DateTime Function() clock = DateTime.now;
+  int get _today => LoginCalendar.dayNumber(clock());
+
+  bool get loginRewardReady =>
+      LoginCalendar.canClaim(lastClaimDay: _loginLastDay, today: _today);
+
+  /// The calendar day (1..7) that is (or would be) claimed today.
+  int get loginStreakDay => LoginCalendar.nextStreakDay(
+        lastClaimDay: _loginLastDay,
+        lastStreakDay: _loginStreakDay,
+        today: _today,
+      );
+
+  /// Claims today's login reward. Returns it, or null if already claimed.
+  Reward? claimLoginReward() {
+    if (!loginRewardReady) return null;
+    final day = loginStreakDay;
+    final reward = LoginCalendar.days[day - 1];
+    _loginLastDay = _today;
+    _loginStreakDay = day;
+    _prefs.setInt(_kLoginDay, _today);
+    _prefs.setInt(_kLoginStreak, day);
+    grant(reward);
+    return reward;
+  }
+
+  void _rollSpinDay() {
+    if (_spinDay != _today) {
+      _spinDay = _today;
+      _spinsUsed = 0;
+      _adSpinsUsed = 0;
+      _prefs.setInt(_kSpinDay, _today);
+      _prefs.setInt(_kSpinsUsed, 0);
+      _prefs.setInt(_kAdSpinsUsed, 0);
+    }
+  }
+
+  bool get freeSpinReady {
+    _rollSpinDay();
+    return _spinsUsed < LuckyWheel.freeSpinsPerDay;
+  }
+
+  int get adSpinsLeft {
+    _rollSpinDay();
+    return LuckyWheel.adSpinsPerDay - _adSpinsUsed;
+  }
+
+  /// Records a spin ([viaAd] for the extra ones) and grants the prize.
+  void recordSpin(Reward prize, {required bool viaAd}) {
+    _rollSpinDay();
+    if (viaAd) {
+      _adSpinsUsed++;
+      _prefs.setInt(_kAdSpinsUsed, _adSpinsUsed);
+    } else {
+      _spinsUsed++;
+      _prefs.setInt(_kSpinsUsed, _spinsUsed);
+    }
+    grant(prize);
+  }
+
+  /// Adds a reward's coins and power-ups.
+  void grant(Reward r) {
+    if (r.coins > 0) {
+      coins += r.coins;
+      _prefs.setInt(_kCoins, coins);
+    }
+    for (final e in r.items.entries) {
+      powerUps[e.key] = powerUpCount(e.key) + e.value;
+      _prefs.setInt('$_kPowerUpPrefix${e.key.name}', powerUps[e.key]!);
+    }
     notifyListeners();
   }
 

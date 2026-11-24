@@ -9,6 +9,7 @@ import '../game/game_screen.dart';
 import '../game/modes.dart';
 import 'adventure_screen.dart';
 import 'fx.dart';
+import 'rewards_ui.dart';
 import 'widgets.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -48,6 +49,20 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   if (app.dailyStreak > 0) _StreakChip(streak: app.dailyStreak),
                   const Spacer(),
+                  _BadgeButton(
+                    icon: Icons.card_giftcard_rounded,
+                    color: const Color(0xFFF23F5B),
+                    dot: app.loginRewardReady,
+                    onTap: () => showLoginCalendar(context),
+                  ),
+                  const SizedBox(width: 10),
+                  _BadgeButton(
+                    icon: Icons.casino_rounded,
+                    color: const Color(0xFF9B5BF5),
+                    dot: app.freeSpinReady,
+                    onTap: () => showLuckyWheel(context),
+                  ),
+                  const SizedBox(width: 10),
                   CoinPill(coins: app.coins, theme: t),
                 ],
               ),
@@ -127,6 +142,54 @@ class HomeScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Round icon button with an optional red "something's waiting" dot.
+class _BadgeButton extends StatelessWidget {
+  const _BadgeButton({
+    required this.icon,
+    required this.color,
+    required this.dot,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final bool dot;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget b = ChunkyButton(
+      color: color,
+      width: 46,
+      height: 42,
+      radius: 14,
+      onPressed: onTap,
+      child: Icon(icon, color: Colors.white, size: 26),
+    );
+    if (dot) b = Pulse(amount: .06, period: 700, child: b);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        b,
+        if (dot)
+          Positioned(
+            right: -3,
+            top: -3,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF3B30),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

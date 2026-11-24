@@ -6,6 +6,7 @@ import '../app/theme.dart';
 import 'fx.dart';
 import 'home_screen.dart';
 import 'me_screen.dart';
+import 'rewards_ui.dart';
 import 'shop_screen.dart';
 
 /// Bottom-tab shell: Home (play), Shop, Me (stats/achievements/settings),
@@ -19,6 +20,17 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Greet returning players with today's login reward.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && AppState.instance.loginRewardReady) {
+        showLoginCalendar(context);
+      }
+    });
+  }
 
   static const _tabs = [
     (icon: Icons.home_rounded, label: 'Home'),
