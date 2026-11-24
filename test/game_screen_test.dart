@@ -4,6 +4,7 @@ import 'package:block_bloom/game/game_screen.dart';
 import 'package:block_bloom/game/modes.dart';
 import 'package:block_bloom/game/powerups.dart';
 import 'package:block_bloom/game/session.dart';
+import 'package:block_bloom/ui/fx.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -198,5 +199,87 @@ void main() {
     expect(find.text('Out of Space!'), findsNothing);
     expect(AppState.instance.powerUpCount(PowerUp.shuffle), 1);
     await frames(tester, 20);
+  });
+
+  testWidgets('dragging a piece to finish a line on a 3-combo pays coins that fly in',
+      (tester) async {
+    final state = await openGame(tester);
+    final GameSession s = state.session;
+    // Row 7 full except its first cell; a dot in tray slot 0.
+    for (var i = 0; i < 64; i++) {
+      s.board.cells[i] = -1;
+    }
+    for (var x = 1; x < 8; x++) {
+      s.board.cells[7 * 8 + x] = 2;
+    }
+    s.board.cells[0] = 4; // a stray block, so this isn't an all-clear
+    s.tray[0] = PieceShape('dot', const [Cell(0, 0)], PieceColor.mint);
+    s.combo = 2;
+    state.setState(() {});
+    await frames(tester, 3);
+
+    final grid = tester.getRect(find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter.runtimeType.toString() == 'BoardPainter'));
+    final cell = grid.width / 8;
+    final slot = tester.getRect(find.byWidgetPredicate((w) =>
+        w is CustomPaint &&
+        w.painter.runtimeType.toString() == 'PiecePainter' &&
+        (w.painter as dynamic).shape.family == 'dot'));
+
+    // The lifted piece floats ~0.9 cells above the finger, so aim the
+    // finger just below the target cell.
+    final target = grid.topLeft + Offset(cell / 2, 7 * cell + cell + cell * .9);
+    final g = await tester.startGesture(slot.center);
+    await tester.pump(const Duration(milliseconds: 50));
+    await g.moveTo(Offset.lerp(slot.center, target, .5)!);
+    await tester.pump(const Duration(milliseconds: 50));
+    await g.moveTo(target);
+    await tester.pump(const Duration(milliseconds: 200));
+    await g.up();
+    await frames(tester, 2);
+
+    expect(s.board.isEmptyAt(1, 7), isTrue, reason: 'the line cleared');
+    expect(s.combo, 3);
+    final before = AppState.instance.coins;
+    expect(find.text('+${ComboRewards.coinsFor(PlacementResult(placedCells: 1, clearedRows: const [7], clearedCols: const [], clearedCells: const {}, clearedCellColors: const {}, points: 0, comboAfter: 3))}'), findsWidgets);
+    await frames(tester, 12);
+    expect(AppState.instance.coins, before + 5);
+    await frames(tester, 30);
+  });
+
+  testWidgets('an all-clear throws confetti and pays the all-clear bonus',
+      (tester) async {
+    final state = await openGame(tester);
+    final GameSession s = state.session;
+    for (var i = 0; i < 64; i++) {
+      s.board.cells[i] = -1;
+    }
+    for (var x = 1; x < 8; x++) {
+      s.board.cells[7 * 8 + x] = 2;
+    }
+    s.tray[0] = PieceShape('dot', const [Cell(0, 0)], PieceColor.mint);
+    state.setState(() {});
+    await frames(tester, 3);
+    final grid = tester.getRect(find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter.runtimeType.toString() == 'BoardPainter'));
+    final cell = grid.width / 8;
+    final slot = tester.getRect(find.byWidgetPredicate((w) =>
+        w is CustomPaint &&
+        w.painter.runtimeType.toString() == 'PiecePainter' &&
+        (w.painter as dynamic).shape.family == 'dot'));
+    final before = AppState.instance.coins;
+    final g = await tester.startGesture(slot.center);
+    await tester.pump(const Duration(milliseconds: 50));
+    await g.moveTo(grid.topLeft + Offset(cell / 2, 8.9 * cell));
+    await tester.pump(const Duration(milliseconds: 200));
+    await g.up();
+    await frames(tester, 3);
+
+    expect(s.board.isEmpty, isTrue);
+    expect(find.byType(Confetti), findsOneWidget);
+    expect(find.text('All Clear!'), findsWidgets);
+    await frames(tester, 12);
+    expect(AppState.instance.coins, before + ComboRewards.allClear);
+    await frames(tester, 40);
   });
 }

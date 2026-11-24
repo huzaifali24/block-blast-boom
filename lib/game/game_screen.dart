@@ -61,6 +61,13 @@ class _ScorePop {
   final int gen;
 }
 
+class _CoinFlight {
+  _CoinFlight(this.from, this.coins, this.gen);
+  final Offset from; // root-local
+  final int coins;
+  final int gen;
+}
+
 class _GameScreenState extends State<GameScreen>
     with SingleTickerProviderStateMixin {
   late DateTime _day = widget.day ?? DateTime.now();
@@ -68,6 +75,7 @@ class _GameScreenState extends State<GameScreen>
   final _rng = math.Random();
 
   final _rootKey = GlobalKey();
+  final _coinKey = GlobalKey();
   final _gridKey = GlobalKey();
   final _slotKeys = List.generate(3, (_) => GlobalKey());
 
@@ -111,6 +119,11 @@ class _GameScreenState extends State<GameScreen>
   bool _offerRevive = false;
   bool _reviveBusy = false;
   int _reviveGen = 0;
+
+  // Mid-game coin rewards.
+  _CoinFlight? _coinFlight;
+  int _coinBump = 0;
+  int _partyGen = 0;
 
   // Adventure.
   bool _won = false;
@@ -381,6 +394,8 @@ class _GameScreenState extends State<GameScreen>
       }
     });
 
+    _rewardMove(result, center);
+
     final haptics = AppState.instance.hapticsOn;
     if (result.cleared) {
       final big = result.linesCleared >= 2 || result.comboAfter >= 2;
@@ -399,6 +414,89 @@ class _GameScreenState extends State<GameScreen>
     if (_session.gameOver) {
       Future<void>.delayed(const Duration(milliseconds: 650), _startGameOver);
     }
+  }
+
+  /// Pays [ComboRewards] for a great move: coins fly from [center]
+  /// (board-local) to the HUD counter; the best moves also get confetti.
+  void _rewardMove(PlacementResult r, Offset center) {
+    final coins = ComboRewards.coinsFor(r);
+    final party = ComboRewards.celebrate(r);
+    if (coins == 0 && !party) return;
+    final origin = _gridOrigin();
+    setState(() {
+      if (coins > 0 && origin != null) {
+        _coinFlight = _CoinFlight(origin + center, coins, ++_gen);
+      }
+      if (party) _partyGen++;
+    });
+    if (coins > 0) {
+      Future<void>.delayed(const Duration(milliseconds: 750), () {
+        if (!mounted) return;
+        AppState.instance.addCoins(coins);
+        Sound.instance.play(SoundEffect.coin);
+        setState(() => _coinBump++);
+      });
+    }
+  }
+
+  Widget _coinFlightWidget(_CoinFlight f) {
+    final box = _coinKey.currentContext?.findRenderObject() as RenderBox?;
+    final root = _rootBox;
+    if (box == null || root == null) return const SizedBox.shrink();
+    final to = box.localToGlobal(const Offset(18, 18), ancestor: root);
+    final n = math.min(8, 2 + f.coins ~/ 10);
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey('coins${f.gen}'),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 1000),
+          onEnd: () {
+            if (_coinFlight?.gen == f.gen) setState(() => _coinFlight = null);
+          },
+          builder: (_, k, __) => Stack(
+            children: [
+              for (var i = 0; i < n; i++)
+                Builder(builder: (_) {
+                  // Each coin bursts out, then arcs into the counter.
+                  final lt = ((k - i * .05) / .75).clamp(0.0, 1.0);
+                  final a = i * 2 * math.pi / n;
+                  final burst =
+                      f.from + Offset(math.cos(a), math.sin(a)) * _cell * 1.1;
+                  final p = lt < .25
+                      ? Offset.lerp(
+                          f.from, burst, Curves.easeOut.transform(lt / .25))!
+                      : Offset.lerp(burst, to,
+                              Curves.easeInCubic.transform((lt - .25) / .75))! +
+                          Offset(
+                              0, -math.sin((lt - .25) / .75 * math.pi) * _cell);
+                  final scale = lt >= 1 ? 0.0 : 1 - lt * .35;
+                  return Positioned(
+                    left: p.dx - 13,
+                    top: p.dy - 13,
+                    child: Transform.scale(
+                        scale: scale, child: const CoinIcon(size: 26)),
+                  );
+                }),
+              Positioned(
+                left: f.from.dx - 60,
+                top: f.from.dy - _cell * 1.6 - 30 * k,
+                width: 120,
+                child: Opacity(
+                  opacity: (1 - k).clamp(0, 1),
+                  child: Center(
+                    child: ArcadeText('+${f.coins}',
+                        size: _cell * .55,
+                        colors: const [Color(0xFFFFF3A6), Color(0xFFFFB321)],
+                        stroke: const Color(0xFF5A2E00)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   _Popup? _praiseFor(PlacementResult r) {
@@ -853,6 +951,13 @@ class _GameScreenState extends State<GameScreen>
               if (_dragIndex != null) _draggedPiece(skin),
               if (_flyBack != null) _flyBackPiece(skin),
               if (_flashGen > 0) _flash(),
+              if (_partyGen > 0)
+                Positioned.fill(
+                  child: KeyedSubtree(
+                      key: ValueKey('party$_partyGen'),
+                      child: const Confetti()),
+                ),
+              if (_coinFlight != null) _coinFlightWidget(_coinFlight!),
               if (_offerRevive) _reviveOffer(t),
               if (_showResults) _results(t),
               if (_showWin) _levelWin(t),
@@ -877,20 +982,38 @@ class _GameScreenState extends State<GameScreen>
                 _BestBadge(best: _best, theme: t),
               Expanded(
                 child: Center(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    transitionBuilder: (child, a) =>
-                        ScaleTransition(scale: a, child: child),
-                    child: _session.combo >= 2
-                        ? _ComboBadge(
-                            key: ValueKey(_session.combo),
-                            combo: _session.combo)
-                        : daily
-                            ? const _DailyTag()
-                            : const SizedBox.shrink(),
+                  // Shrinks rather than overflowing when the row is tight.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      transitionBuilder: (child, a) =>
+                          ScaleTransition(scale: a, child: child),
+                      child: _session.combo >= 2
+                          ? _ComboBadge(
+                              key: ValueKey(_session.combo),
+                              combo: _session.combo)
+                          : daily
+                              ? const _DailyTag()
+                              : const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),
+              TweenAnimationBuilder<double>(
+                key: ValueKey('bump$_coinBump'),
+                tween: Tween(begin: _coinBump == 0 ? 1 : 1.35, end: 1),
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutBack,
+                builder: (_, k, child) =>
+                    Transform.scale(scale: k, child: child),
+                child: ListenableBuilder(
+                  listenable: AppState.instance,
+                  builder: (_, __) =>
+                      _HudCoins(key: _coinKey, coins: AppState.instance.coins),
+                ),
+              ),
+              const SizedBox(width: 8),
               _RoundIconButton(
                 icon: Icons.pause_rounded,
                 color: Color.lerp(t.surface, Colors.white, .12)!,
@@ -1633,7 +1756,8 @@ class _GameScreenState extends State<GameScreen>
           child: Opacity(
             opacity: k,
             child: Transform.scale(
-                scale: .85 + .15 * Curves.easeOutBack.transform(k), child: child),
+                scale: .85 + .15 * Curves.easeOutBack.transform(k),
+                child: child),
           ),
         ),
         child: Stack(
@@ -1647,7 +1771,8 @@ class _GameScreenState extends State<GameScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ArcadeText('Level ${level.number}', size: 30,
+                  ArcadeText('Level ${level.number}',
+                      size: 30,
                       colors: const [Colors.white, Color(0xFFCFD6FF)],
                       stroke: const Color(0xFF14154A)),
                   const ArcadeText('Complete!', size: 48),
@@ -1692,7 +1817,8 @@ class _GameScreenState extends State<GameScreen>
                             icon: Icon(_goalIcon(level.goal),
                                 color: const Color(0xFF7FE3FF), size: 24),
                             label: 'MOVES',
-                            value: '${_session.movesPlayed}  (par ${level.par})',
+                            value:
+                                '${_session.movesPlayed}  (par ${level.par})',
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1713,7 +1839,8 @@ class _GameScreenState extends State<GameScreen>
                         color: t.accent,
                         width: 260,
                         height: 60,
-                        onPressed: () => _openLevel(Levels.get(level.number + 1)),
+                        onPressed: () =>
+                            _openLevel(Levels.get(level.number + 1)),
                         child: const _ButtonLabel(
                             Icons.arrow_forward_rounded, 'Next Level'),
                       ),
@@ -2129,6 +2256,34 @@ class _PowerButton extends StatelessWidget {
   }
 }
 
+class _HudCoins extends StatelessWidget {
+  const _HudCoins({super.key, required this.coins});
+  final int coins;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: .3),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: .12)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CoinIcon(size: 28),
+            const SizedBox(width: 6),
+            Text('$coins',
+                style: const TextStyle(
+                    fontFamily: kFont,
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800)),
+          ],
+        ),
+      );
+}
+
 class _LevelBadge extends StatelessWidget {
   const _LevelBadge({required this.number});
   final int number;
@@ -2141,7 +2296,9 @@ class _LevelBadge extends StatelessWidget {
               colors: [Color(0xFFFFB02E), Color(0xFFFF7A1A)]),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: Colors.white.withValues(alpha: .35)),
-          boxShadow: const [BoxShadow(color: Color(0x55FF8A1C), blurRadius: 12)],
+          boxShadow: const [
+            BoxShadow(color: Color(0x55FF8A1C), blurRadius: 12)
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2208,7 +2365,9 @@ class _GoalBar extends StatelessWidget {
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        shadows: [Shadow(color: Colors.black54, blurRadius: 3)])),
+                        shadows: [
+                          Shadow(color: Colors.black54, blurRadius: 3)
+                        ])),
               ],
             ),
           ),

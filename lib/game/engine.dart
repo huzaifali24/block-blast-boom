@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'shapes.dart';
 
 export 'shapes.dart' show Cell, PieceShape, PieceColor, PieceBag, Shapes;
@@ -235,4 +237,31 @@ PlacementResult applyPlacement({
     comboAfter: scored.comboAfter,
     allClear: allClear,
   );
+}
+
+/// Coins paid out *during* a game for skilful moves, on top of the
+/// end-of-game coins: long combos, big multi-line clears, all-clears.
+class ComboRewards {
+  ComboRewards._();
+
+  static const comboStart = 3;
+  static const perComboStep = 5;
+  static const comboCap = 7;
+  static const perBigLine = 5;
+  static const allClear = 50;
+
+  /// Coins for the move described by [r] (0 for ordinary moves).
+  static int coinsFor(PlacementResult r) {
+    if (!r.cleared) return 0;
+    var coins = 0;
+    if (r.comboAfter >= comboStart) {
+      coins += perComboStep * (min(r.comboAfter, comboCap) - comboStart + 1);
+    }
+    if (r.linesCleared >= 3) coins += perBigLine * (r.linesCleared - 2);
+    if (r.allClear) coins += allClear;
+    return coins;
+  }
+
+  /// Moves worth a full-screen celebration.
+  static bool celebrate(PlacementResult r) => r.allClear || r.comboAfter >= 5;
 }
