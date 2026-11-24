@@ -106,6 +106,7 @@ class _GameScreenState extends State<GameScreen>
   }
 
 
+
   GameSession _newSession() => widget.mode == GameMode.daily
       ? GameSession.seeded(DailyChallenge.seedFor(_day),
           boardSize: DailyChallenge.boardSize)
@@ -394,16 +395,24 @@ class _GameScreenState extends State<GameScreen>
                   _hud(t),
                   Expanded(
                     child: LayoutBuilder(builder: (context, c) {
-                      final outer = math.min(c.maxWidth - 20, c.maxHeight * .64);
+                      // The tray is ~3.3 board cells tall; size the board so
+                      // board + tray + minimum breathing room always fit.
+                      const trayCells = 3.3;
+                      final byHeight =
+                          (c.maxHeight - 36) / (1 + trayCells * .94 / n);
+                      final outer = math.min(c.maxWidth - 16, byHeight);
                       final pad = outer * .03;
                       final grid = outer - pad * 2;
                       _cell = grid / n;
-                      _trayCell = _cell * .5;
+                      _trayCell =
+                          math.min(_cell * .6, (c.maxWidth / 3 - 16) / 5);
                       return Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
+                          const Spacer(flex: 2),
                           _board(t, skin, outer, pad, grid),
-                          _tray(t, skin, c.maxWidth),
+                          const Spacer(flex: 3),
+                          _tray(t, skin, c.maxWidth, _cell * trayCells),
+                          const Spacer(flex: 1),
                         ],
                       );
                     }),
@@ -422,32 +431,29 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Widget _hud(AppTheme t) {
+    final daily = widget.mode == GameMode.daily;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Column(
         children: [
           Row(
             children: [
               _BestBadge(best: _best, theme: t),
-              const Spacer(),
-              if (widget.mode == GameMode.daily)
-                Container(
-                  margin: const EdgeInsets.only(right: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [Color(0xFFB37BFF), Color(0xFF7B3FE4)]),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white.withValues(alpha: .25)),
+              Expanded(
+                child: Center(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    transitionBuilder: (child, a) =>
+                        ScaleTransition(scale: a, child: child),
+                    child: _session.combo >= 2
+                        ? _ComboBadge(
+                            key: ValueKey(_session.combo), combo: _session.combo)
+                        : daily
+                            ? const _DailyTag()
+                            : const SizedBox.shrink(),
                   ),
-                  child: const Text('DAILY',
-                      style: TextStyle(
-                          fontFamily: kFont,
-                          color: Colors.white,
-                          fontSize: 13,
-                          letterSpacing: 1.5,
-                          fontWeight: FontWeight.w800)),
                 ),
+              ),
               _RoundIconButton(
                 icon: Icons.pause_rounded,
                 color: Color.lerp(t.surface, Colors.white, .12)!,
@@ -455,20 +461,19 @@ class _GameScreenState extends State<GameScreen>
               ),
             ],
           ),
-          const SizedBox(height: 2),
           SizedBox(
-            height: 70,
+            height: 74,
             child: Stack(
               alignment: Alignment.center,
               clipBehavior: Clip.none,
               children: [
                 // Soft glow behind the score.
                 Container(
-                  width: 260,
-                  height: 90,
+                  width: 280,
+                  height: 100,
                   decoration: BoxDecoration(
                     gradient: RadialGradient(colors: [
-                      const Color(0xFF9FB0FF).withValues(alpha: .35),
+                      const Color(0xFF9FB0FF).withValues(alpha: .32),
                       const Color(0xFF9FB0FF).withValues(alpha: 0),
                     ]),
                   ),
@@ -479,23 +484,12 @@ class _GameScreenState extends State<GameScreen>
                   curve: Curves.easeOut,
                   builder: (_, v, __) => ArcadeText(
                     '${v.round()}',
-                    size: 56,
+                    size: 60,
                     colors: const [Colors.white, Color(0xFFD9DEFF)],
                     stroke: t.boardFrame,
                   ),
                 ),
               ],
-            ),
-          ),
-          SizedBox(
-            height: 30,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              transitionBuilder: (child, a) =>
-                  ScaleTransition(scale: a, child: child),
-              child: _session.combo >= 2
-                  ? _ComboBadge(key: ValueKey(_session.combo), combo: _session.combo)
-                  : const SizedBox.shrink(),
             ),
           ),
         ],
@@ -756,31 +750,39 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
-  Widget _tray(AppTheme t, BlockSkin skin, double width) {
-    final slotH = _trayCell * 5 + 20;
-    return Container(
-      height: slotH,
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.white.withValues(alpha: .1),
-            Colors.white.withValues(alpha: .03),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withValues(alpha: .1)),
-      ),
+  Widget _tray(AppTheme t, BlockSkin skin, double width, double height) {
+    return SizedBox(
+      height: height,
       child: Row(
         children: [
           for (var i = 0; i < 3; i++)
             Expanded(
               child: SizedBox(
                 key: _slotKeys[i],
-                height: slotH,
-                child: _slot(i, skin),
+                height: height,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Soft spotlight pad the piece rests on.
+                    Container(
+                      width: width / 3 - 14,
+                      height: height * .88,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        gradient: RadialGradient(
+                          radius: .75,
+                          colors: [
+                            Colors.white.withValues(alpha: .11),
+                            Colors.white.withValues(alpha: .02),
+                          ],
+                        ),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: .07)),
+                      ),
+                    ),
+                    Positioned.fill(child: _slot(i, skin)),
+                  ],
+                ),
               ),
             ),
         ],
@@ -1154,6 +1156,28 @@ class _BestBadge extends StatelessWidget {
                     fontWeight: FontWeight.w800)),
           ],
         ),
+      );
+}
+
+class _DailyTag extends StatelessWidget {
+  const _DailyTag();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFFB37BFF), Color(0xFF7B3FE4)]),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: .25)),
+        ),
+        child: const Text('DAILY',
+            style: TextStyle(
+                fontFamily: kFont,
+                color: Colors.white,
+                fontSize: 13,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w800)),
       );
 }
 

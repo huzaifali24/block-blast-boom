@@ -37,25 +37,24 @@ class HomeScreen extends StatelessWidget {
       listenable: app,
       builder: (context, _) {
         final t = app.theme;
-        return LayoutBuilder(
-          builder: (context, c) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: c.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        if (app.dailyStreak > 0)
-                          _StreakChip(streak: app.dailyStreak),
-                        const Spacer(),
-                        CoinPill(coins: app.coins, theme: t),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Bob(
+        // No scrolling: the logo block scales down to whatever height is
+        // left, so Play and Daily are always on screen on any phone.
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 14),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  if (app.dailyStreak > 0) _StreakChip(streak: app.dailyStreak),
+                  const Spacer(),
+                  CoinPill(coins: app.coins, theme: t),
+                ],
+              ),
+              Expanded(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Bob(
                       distance: 8,
                       child: Column(
                         children: [
@@ -67,7 +66,7 @@ class HomeScreen extends StatelessWidget {
                             ],
                           ),
                           Transform.translate(
-                            offset: const Offset(0, -40),
+                            offset: const Offset(0, -46),
                             child: const Column(
                               children: [
                                 ArcadeText('BLOCK', size: 58),
@@ -81,32 +80,32 @@ class HomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    _BestPlaque(best: app.bestClassic, theme: t),
-                    const SizedBox(height: 26),
-                    Pulse(
-                      child: PrimaryButton(
-                        label: 'PLAY',
-                        theme: t,
-                        icon: Icons.play_arrow_rounded,
-                        onPressed: () => _play(
-                            context, const GameScreen(mode: GameMode.classic)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    PrimaryButton(
-                      label: app.dailyDoneToday
-                          ? 'DAILY  ·  BEST ${app.bestDailyFor(today)}'
-                          : 'DAILY CHALLENGE',
-                      theme: t,
-                      color: const Color(0xFF9B5BF5),
-                      icon: Icons.calendar_month_rounded,
-                      onPressed: () => _play(
-                          context, GameScreen(mode: GameMode.daily, day: today)),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              _BestPlaque(best: app.bestClassic, theme: t),
+              const SizedBox(height: 18),
+              Pulse(
+                child: PrimaryButton(
+                  label: 'PLAY',
+                  theme: t,
+                  icon: Icons.play_arrow_rounded,
+                  onPressed: () =>
+                      _play(context, const GameScreen(mode: GameMode.classic)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              PrimaryButton(
+                label: app.dailyDoneToday
+                    ? 'DAILY  ·  BEST ${app.bestDailyFor(today)}'
+                    : 'DAILY CHALLENGE',
+                theme: t,
+                color: const Color(0xFF9B5BF5),
+                icon: Icons.calendar_month_rounded,
+                onPressed: () =>
+                    _play(context, GameScreen(mode: GameMode.daily, day: today)),
+              ),
+            ],
           ),
         );
       },

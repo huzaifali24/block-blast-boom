@@ -37,18 +37,16 @@ class _MainShellState extends State<MainShell> {
           extendBody: true,
           body: AmbientBackground(
             theme: t,
+            // With extendBody, the bottom inset already includes the
+            // floating tab bar and the system navigation bar.
             child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 84),
-                child: IndexedStack(
-                  index: _tab,
-                  children: const [
-                    HomeScreen(),
-                    ShopScreen(),
-                    MeScreen(),
-                  ],
-                ),
+              child: IndexedStack(
+                index: _tab,
+                children: const [
+                  HomeScreen(),
+                  ShopScreen(),
+                  MeScreen(),
+                ],
               ),
             ),
           ),
