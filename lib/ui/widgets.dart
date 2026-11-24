@@ -154,7 +154,15 @@ class _ChunkyButtonState extends State<ChunkyButton> {
                         ),
                       ),
                     ),
-                    Center(child: widget.child),
+                    // Labels shrink rather than overflow on narrow screens
+                    // or with large system font sizes.
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: FittedBox(
+                            fit: BoxFit.scaleDown, child: widget.child),
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -4,6 +4,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app/ads.dart';
 import '../app/app_state.dart';
 import '../app/music.dart';
 import '../app/sound.dart';
@@ -13,6 +14,7 @@ import '../ui/widgets.dart';
 import 'board_painter.dart';
 import 'engine.dart';
 import 'modes.dart';
+import 'powerups.dart';
 import 'session.dart';
 import 'skins.dart';
 
@@ -94,6 +96,17 @@ class _GameScreenState extends State<GameScreen>
   int _flashGen = 0;
   double _flashStrength = 0;
 
+  // Power-ups.
+  PowerUp? _armed; // Bomb/Rotate waiting for the player's tap
+  SessionSnapshot? _undo;
+  final Map<int, int> _spinGen = {};
+
+  // Revive.
+  int _revivesUsed = 0;
+  bool _offerRevive = false;
+  bool _reviveBusy = false;
+  int _reviveGen = 0;
+
   // Game over.
   bool _over = false;
   bool _showResults = false;
@@ -107,7 +120,11 @@ class _GameScreenState extends State<GameScreen>
     super.dispose();
   }
 
+  @visibleForTesting
+  GameSession get session => _session;
 
+  @visibleForTesting
+  void triggerGameOver() => _startGameOver();
 
   GameSession _newSession() => widget.mode == GameMode.daily
       ? GameSession.seeded(DailyChallenge.seedFor(_day),
@@ -131,6 +148,11 @@ class _GameScreenState extends State<GameScreen>
       _over = false;
       _showResults = false;
       _outcome = null;
+      _armed = null;
+      _undo = null;
+      _revivesUsed = 0;
+      _offerRevive = false;
+      _reviveBusy = false;
       _gen++;
       _trayGen++;
       _overGen++;
@@ -207,6 +229,11 @@ class _GameScreenState extends State<GameScreen>
   void _onDown(int i, PointerDownEvent e) {
     if (_dragIndex != null || _over || _session.tray[i] == null) return;
     if (_flyBack?.index == i) return;
+    if (_armed == PowerUp.rotate) {
+      _applyRotate(i);
+      return;
+    }
+    if (_armed != null) _disarm();
     _pointer = e.pointer;
     _pulse.repeat();
     setState(() {
@@ -268,8 +295,10 @@ class _GameScreenState extends State<GameScreen>
   void _place(int i, Cell at) {
     final shape = _session.tray[i]!;
     final lastOfTray = _session.tray.where((s) => s != null).length == 1;
+    final snap = _session.snapshot();
     final result = _session.place(i, at.x, at.y);
     if (result == null) return;
+    _undo = snap;
 
     final skin = AppState.instance.skin;
     final n = _session.board.size;
@@ -307,7 +336,8 @@ class _GameScreenState extends State<GameScreen>
         }
         if (result.linesCleared >= 2 || result.allClear) {
           _flashGen++;
-          _flashStrength = result.allClear ? .55 : .12 + .06 * result.linesCleared;
+          _flashStrength =
+              result.allClear ? .55 : .12 + .06 * result.linesCleared;
         }
       }
     });
@@ -338,13 +368,58 @@ class _GameScreenState extends State<GameScreen>
       return _Popup('All Clear!', sub ?? '+${ScoreRules.allClearBonus}', _gen);
     }
     final level = r.linesCleared + (combo - 1);
-    const words = ['Good!', 'Great!', 'Excellent!', 'Amazing!', 'Unbelievable!'];
+    const words = [
+      'Good!',
+      'Great!',
+      'Excellent!',
+      'Amazing!',
+      'Unbelievable!'
+    ];
     if (level < 2) return sub == null ? null : _Popup(sub, null, _gen);
     return _Popup(words[math.min(level - 2, words.length - 1)], sub, _gen);
   }
 
   void _startGameOver() {
     if (_over || !mounted) return;
+    Sound.instance.play(SoundEffect.gameOver);
+    Music.instance.duck(true);
+    if (AppState.instance.hapticsOn) HapticFeedback.heavyImpact();
+    setState(() {
+      _over = true;
+      _armed = null;
+      _overGen++;
+    });
+    final gen = _overGen;
+    Future<void>.delayed(const Duration(milliseconds: 1300), () {
+      if (!mounted || !_over || _overGen != gen) return;
+      if (_canContinue) {
+        setState(() {
+          _offerRevive = true;
+          _reviveGen++;
+        });
+      } else {
+        _finishGame();
+      }
+    });
+  }
+
+  bool get _powerUpsAllowed => widget.mode == GameMode.classic;
+
+  bool get _canRevive => _powerUpsAllowed && _revivesUsed < ReviveRules.perGame;
+
+  /// Owned power-ups that can rescue a stuck board.
+  List<PowerUp> get _rescuePowerUps => !_powerUpsAllowed
+      ? const []
+      : [
+          for (final p in const [PowerUp.bomb, PowerUp.shuffle])
+            if (AppState.instance.powerUpCount(p) > 0) p,
+        ];
+
+  bool get _canContinue => _canRevive || _rescuePowerUps.isNotEmpty;
+
+  /// The game is really over: record it and show the results.
+  void _finishGame() {
+    if (!mounted || _showResults) return;
     final outcome = AppState.instance.recordGameResult(
       mode: _session.mode,
       score: _session.score,
@@ -352,21 +427,285 @@ class _GameScreenState extends State<GameScreen>
       movesPlayed: _session.movesPlayed,
       day: _day,
     );
-    Sound.instance.play(SoundEffect.gameOver);
-    Music.instance.duck(true);
-    if (AppState.instance.hapticsOn) HapticFeedback.heavyImpact();
     setState(() {
-      _over = true;
-      _overGen++;
+      _offerRevive = false;
       _outcome = outcome;
+      _showResults = true;
     });
-    final gen = _overGen;
-    Future<void>.delayed(const Duration(milliseconds: 1700), () {
-      if (mounted && _over && _overGen == gen) {
-        setState(() => _showResults = true);
-        if (outcome.isNewBest) Sound.instance.play(SoundEffect.coin);
+    if (outcome.isNewBest) Sound.instance.play(SoundEffect.coin);
+  }
+
+  void _declineRevive() {
+    if (!_offerRevive || _reviveBusy) return;
+    _finishGame();
+  }
+
+  /// Leaves the game-over state and plays again from the current board.
+  void _resume() {
+    Music.instance.duck(false);
+    _over = false;
+    _offerRevive = false;
+    _overGen++;
+  }
+
+  Future<void> _revive({required bool viaAd}) async {
+    if (_reviveBusy) return;
+    final app = AppState.instance;
+    if (viaAd) {
+      setState(() => _reviveBusy = true);
+      final earned = await Ads.instance.showRewarded();
+      if (!mounted) return;
+      setState(() => _reviveBusy = false);
+      if (!earned) return; // stay on the offer; they can still decide
+    } else if (!app.spendCoins(ReviveRules.coinPrice)) {
+      return;
+    }
+    final cleared = _session.revive();
+    _revivesUsed++;
+    final mid = Offset(
+        _cell * _session.board.size / 2, _cell * _session.board.size / 2);
+    setState(() {
+      _resume();
+      _undo = null;
+      _gen++;
+      _trayGen++;
+      _clearFx = buildBurstFx(
+        cleared: cleared,
+        strength: 3,
+        boardSize: _session.board.size,
+        cell: _cell,
+        from: mid,
+        skin: app.skin,
+        rng: _rng,
+      );
+      _praise = _Popup('Revived!', 'Keep going', _gen);
+      _flashGen++;
+      _flashStrength = .45;
+      _shakeGen++;
+      _shakeAmp = _cell * .18;
+    });
+    Sound.instance.play(SoundEffect.combo);
+    if (app.hapticsOn) HapticFeedback.heavyImpact();
+  }
+
+  /// From the stuck-board offer: use an owned Bomb or Shuffle instead.
+  void _rescueWith(PowerUp p) {
+    setState(_resume);
+    _onPowerUp(p);
+  }
+
+  // -------------------------------------------------------------- power-ups
+
+  void _onPowerUp(PowerUp p) {
+    if (!_powerUpsAllowed || _over || _dragIndex != null) return;
+    if (_armed == p) {
+      _disarm();
+      return;
+    }
+    final app = AppState.instance;
+    if (p == PowerUp.undo && _undo == null) {
+      _toast('Nothing to undo yet');
+      return;
+    }
+    if (app.powerUpCount(p) <= 0) {
+      _offerPowerUp(p);
+      return;
+    }
+    Sound.instance.play(SoundEffect.tap);
+    switch (p) {
+      case PowerUp.undo:
+        app.usePowerUp(p);
+        setState(() {
+          _session.restore(_undo!);
+          _undo = null;
+          _clearFx = null;
+          _praise = null;
+          _scorePop = null;
+          _popCells = const {};
+          _gen++;
+        });
+      case PowerUp.shuffle:
+        app.usePowerUp(p);
+        setState(() {
+          _session.shuffle();
+          _undo = null;
+          _trayGen++;
+        });
+      case PowerUp.bomb:
+      case PowerUp.rotate:
+        setState(() => _armed = p);
+    }
+    _checkStuckAfterPowerUp();
+  }
+
+  void _applyRotate(int i) {
+    final app = AppState.instance;
+    if (!app.usePowerUp(PowerUp.rotate)) return;
+    Sound.instance.play(SoundEffect.pick);
+    if (app.hapticsOn) HapticFeedback.selectionClick();
+    setState(() {
+      _session.rotate(i);
+      _spinGen[i] = (_spinGen[i] ?? 0) + 1;
+      _armed = null;
+    });
+    _checkStuckAfterPowerUp();
+  }
+
+  void _bombAt(Offset local) {
+    final x = (local.dx / _cell).floor(), y = (local.dy / _cell).floor();
+    if (!_session.board.inBounds(x, y)) return;
+    final app = AppState.instance;
+    var any = false;
+    for (var yy = y - 1; yy <= y + 1; yy++) {
+      for (var xx = x - 1; xx <= x + 1; xx++) {
+        if (_session.board.inBounds(xx, yy) &&
+            !_session.board.isEmptyAt(xx, yy)) {
+          any = true;
+        }
+      }
+    }
+    if (!any) {
+      _toast('Aim at some blocks!');
+      return;
+    }
+    if (!app.usePowerUp(PowerUp.bomb)) return;
+    final cleared = _session.bomb(x, y);
+    setState(() {
+      _armed = null;
+      _undo = null;
+      _gen++;
+      _clearFx = buildBurstFx(
+        cleared: cleared,
+        strength: 2,
+        boardSize: _session.board.size,
+        cell: _cell,
+        from: Offset((x + .5) * _cell, (y + .5) * _cell),
+        skin: app.skin,
+        rng: _rng,
+      );
+      _praise = _Popup('Boom!', null, _gen);
+      _flashGen++;
+      _flashStrength = .3;
+      _shakeGen++;
+      _shakeAmp = _cell * .2;
+    });
+    Sound.instance.play(SoundEffect.combo);
+    if (app.hapticsOn) HapticFeedback.heavyImpact();
+    _checkStuckAfterPowerUp();
+  }
+
+  /// Cancels an armed Bomb/Rotate.
+  void _disarm() {
+    setState(() => _armed = null);
+    _checkStuckAfterPowerUp();
+  }
+
+  /// After a power-up (or cancelling one) the board may have no moves left;
+  /// end the game then — but never while a Bomb/Rotate is still being aimed.
+  void _checkStuckAfterPowerUp() {
+    if (!_session.gameOver || _over || _armed != null) return;
+    Future<void>.delayed(const Duration(milliseconds: 500), () {
+      if (mounted && _session.gameOver && !_over && _armed == null) {
+        _startGameOver();
       }
     });
+  }
+
+  void _toast(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontFamily: kFont, fontWeight: FontWeight.w700)),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1400),
+        backgroundColor: Colors.black.withValues(alpha: .8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ));
+  }
+
+  void _offerPowerUp(PowerUp p) {
+    final t = AppState.instance.theme;
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .65),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([AppState.instance, Ads.instance]),
+          builder: (ctx, _) {
+            final app = AppState.instance;
+            final adReady = Ads.instance.ready;
+            return _Panel(
+              theme: t,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _PowerIcon(p: p, size: 76),
+                  const SizedBox(height: 12),
+                  ArcadeText('Need a ${p.label}?', size: 30),
+                  const SizedBox(height: 6),
+                  Text(p.hint,
+                      textAlign: TextAlign.center,
+                      style: t.body(15, color: t.subtext)),
+                  const SizedBox(height: 20),
+                  ChunkyButton(
+                    color: const Color(0xFF9B5BF5),
+                    onPressed: adReady
+                        ? () async {
+                            final earned = await Ads.instance.showRewarded();
+                            if (earned) {
+                              app.addPowerUp(p);
+                              Sound.instance.play(SoundEffect.coin);
+                              if (ctx.mounted) Navigator.of(ctx).pop();
+                            }
+                          }
+                        : null,
+                    child: _ButtonLabel(Icons.smart_display_rounded,
+                        adReady ? 'Watch ad  +1' : 'No ad right now'),
+                  ),
+                  const SizedBox(height: 12),
+                  ChunkyButton(
+                    color: const Color(0xFFFFA41C),
+                    onPressed: app.coins >= p.price
+                        ? () {
+                            app.buyPowerUp(p);
+                            Sound.instance.play(SoundEffect.coin);
+                            Navigator.of(ctx).pop();
+                          }
+                        : null,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CoinIcon(size: 26),
+                        const SizedBox(width: 8),
+                        Text('${p.price}  +1',
+                            style: const TextStyle(
+                                fontFamily: kFont,
+                                color: Colors.white,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('You have ${app.coins} coins',
+                      style: t.body(13, color: t.subtext)),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text('Not now',
+                        style: t.body(15,
+                            color: t.subtext, weight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   int get _best {
@@ -402,8 +741,9 @@ class _GameScreenState extends State<GameScreen>
                       // The tray is ~3.3 board cells tall; size the board so
                       // board + tray + minimum breathing room always fit.
                       const trayCells = 3.3;
+                      const barH = 72.0;
                       final byHeight =
-                          (c.maxHeight - 36) / (1 + trayCells * .94 / n);
+                          (c.maxHeight - 40 - barH) / (1 + trayCells * .94 / n);
                       final outer = math.min(c.maxWidth - 16, byHeight);
                       final pad = outer * .03;
                       final grid = outer - pad * 2;
@@ -414,8 +754,11 @@ class _GameScreenState extends State<GameScreen>
                         children: [
                           const Spacer(flex: 2),
                           _board(t, skin, outer, pad, grid),
-                          const Spacer(flex: 3),
+                          Expanded(
+                              flex: 3, child: Center(child: _armedHint(t))),
                           _tray(t, skin, c.maxWidth, _cell * trayCells),
+                          const SizedBox(height: 6),
+                          SizedBox(height: barH, child: _powerBar(t)),
                           const Spacer(flex: 1),
                         ],
                       );
@@ -426,6 +769,7 @@ class _GameScreenState extends State<GameScreen>
               if (_dragIndex != null) _draggedPiece(skin),
               if (_flyBack != null) _flyBackPiece(skin),
               if (_flashGen > 0) _flash(),
+              if (_offerRevive) _reviveOffer(t),
               if (_showResults) _results(t),
             ],
           ),
@@ -451,7 +795,8 @@ class _GameScreenState extends State<GameScreen>
                         ScaleTransition(scale: a, child: child),
                     child: _session.combo >= 2
                         ? _ComboBadge(
-                            key: ValueKey(_session.combo), combo: _session.combo)
+                            key: ValueKey(_session.combo),
+                            combo: _session.combo)
                         : daily
                             ? const _DailyTag()
                             : const SizedBox.shrink(),
@@ -501,7 +846,8 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
-  Widget _board(AppTheme t, BlockSkin skin, double outer, double pad, double grid) {
+  Widget _board(
+      AppTheme t, BlockSkin skin, double outer, double pad, double grid) {
     final dragShape = _dragIndex == null ? null : _session.tray[_dragIndex!];
     final radius = outer * .045;
     return TweenAnimationBuilder<double>(
@@ -555,86 +901,118 @@ class _GameScreenState extends State<GameScreen>
               ],
             ),
           ),
-          child: SizedBox(
-            key: _gridKey,
-            width: grid,
-            height: grid,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: RepaintBoundary(
-                    child: AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (_, __) => TweenAnimationBuilder<double>(
-                        key: ValueKey('pop$_gen'),
-                        tween: Tween(begin: 0, end: 1),
-                        duration: const Duration(milliseconds: 260),
-                        builder: (_, popT, __) => TweenAnimationBuilder<double>(
-                          key: ValueKey('grey$_overGen'),
-                          tween: Tween(begin: 0, end: _over ? 1 : 0),
-                          duration: const Duration(milliseconds: 900),
-                          builder: (_, greyT, __) => CustomPaint(
-                            painter: BoardPainter(
-                              board: _session.board,
-                              skin: skin,
-                              theme: t,
-                              ghostShape: _ghost == null ? null : dragShape,
-                              ghostOrigin: _ghost,
-                              ghostColor: dragShape == null
-                                  ? null
-                                  : skin.forPiece(dragShape.color),
-                              previewRows: _previewRows,
-                              previewCols: _previewCols,
-                              popCells: _popCells,
-                              popT: popT,
-                              greyT: greyT,
-                              pulse: _pulse.value,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp:
+                _armed == PowerUp.bomb ? (d) => _bombAt(d.localPosition) : null,
+            child: SizedBox(
+              key: _gridKey,
+              width: grid,
+              height: grid,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  if (_armed == PowerUp.bomb)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Pulse(
+                          amount: .015,
+                          period: 500,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(_cell * .2),
+                              border: Border.all(
+                                  color: const Color(0xFFFF5A4E), width: 3),
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Color(0x88FF5A4E), blurRadius: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: _pulse,
+                        builder: (_, __) => TweenAnimationBuilder<double>(
+                          key: ValueKey('pop$_gen'),
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 260),
+                          builder: (_, popT, __) =>
+                              TweenAnimationBuilder<double>(
+                            key: ValueKey('grey$_overGen'),
+                            tween: Tween(begin: 0, end: _over ? 1 : 0),
+                            duration: const Duration(milliseconds: 900),
+                            builder: (_, greyT, __) => CustomPaint(
+                              painter: BoardPainter(
+                                board: _session.board,
+                                skin: skin,
+                                theme: t,
+                                ghostShape: _ghost == null ? null : dragShape,
+                                ghostOrigin: _ghost,
+                                ghostColor: dragShape == null
+                                    ? null
+                                    : skin.forPiece(dragShape.color),
+                                previewRows: _previewRows,
+                                previewCols: _previewCols,
+                                popCells: _popCells,
+                                popT: popT,
+                                greyT: greyT,
+                                pulse: _pulse.value,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                if (_clearFx != null)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: TweenAnimationBuilder<double>(
-                        key: ValueKey('clear$_gen'),
-                        tween: Tween(begin: 0, end: 1),
-                        duration: const Duration(milliseconds: 850),
-                        onEnd: () => setState(() => _clearFx = null),
-                        builder: (_, k, __) => CustomPaint(
-                          painter: ClearFxPainter(fx: _clearFx!, cell: _cell, t: k),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (_scorePop != null) _scorePopWidget(_scorePop!),
-                if (_praise != null) _praiseWidget(_praise!, grid),
-                if (_over && !_showResults)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Center(
+                  if (_clearFx != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
                         child: TweenAnimationBuilder<double>(
-                          key: ValueKey('nospace$_overGen'),
+                          key: ValueKey('clear$_gen'),
                           tween: Tween(begin: 0, end: 1),
-                          duration: const Duration(milliseconds: 900),
-                          curve: const Interval(.4, 1, curve: Curves.easeOutBack),
-                          builder: (_, k, child) => Opacity(
-                            opacity: k.clamp(0, 1),
-                            child: Transform.scale(scale: .6 + .4 * k, child: child),
+                          duration: const Duration(milliseconds: 850),
+                          onEnd: () => setState(() => _clearFx = null),
+                          builder: (_, k, __) => CustomPaint(
+                            painter: ClearFxPainter(
+                                fx: _clearFx!, cell: _cell, t: k),
                           ),
-                          child: ArcadeText('No More Space',
-                              size: _cell * .8,
-                              colors: const [Color(0xFFFFB3B3), Color(0xFFFF4D5E)],
-                              stroke: const Color(0xFF3D0610)),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                  if (_scorePop != null) _scorePopWidget(_scorePop!),
+                  if (_praise != null) _praiseWidget(_praise!, grid),
+                  if (_over && !_showResults)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Center(
+                          child: TweenAnimationBuilder<double>(
+                            key: ValueKey('nospace$_overGen'),
+                            tween: Tween(begin: 0, end: 1),
+                            duration: const Duration(milliseconds: 900),
+                            curve: const Interval(.4, 1,
+                                curve: Curves.easeOutBack),
+                            builder: (_, k, child) => Opacity(
+                              opacity: k.clamp(0, 1),
+                              child: Transform.scale(
+                                  scale: .6 + .4 * k, child: child),
+                            ),
+                            child: ArcadeText('No More Space',
+                                size: _cell * .8,
+                                colors: const [
+                                  Color(0xFFFFB3B3),
+                                  Color(0xFFFF4D5E)
+                                ],
+                                stroke: const Color(0xFF3D0610)),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -652,7 +1030,8 @@ class _GameScreenState extends State<GameScreen>
           curve: Curves.easeOut,
           builder: (_, k, __) => k <= 0
               ? const SizedBox.shrink()
-              : ColoredBox(color: Colors.white.withValues(alpha: _flashStrength * k)),
+              : ColoredBox(
+                  color: Colors.white.withValues(alpha: _flashStrength * k)),
         ),
       ),
     );
@@ -677,7 +1056,8 @@ class _GameScreenState extends State<GameScreen>
             child: Opacity(
               opacity: k < .6 ? 1 : (1 - (k - .6) / .4),
               child: Transform.scale(
-                  scale: .7 + .3 * Curves.easeOutBack.transform((k / .3).clamp(0, 1)),
+                  scale: .7 +
+                      .3 * Curves.easeOutBack.transform((k / .3).clamp(0, 1)),
                   child: child),
             ),
           ),
@@ -810,21 +1190,33 @@ class _GameScreenState extends State<GameScreen>
             offset: Offset((1 - k) * 60, 0),
             child: Transform.scale(scale: k, child: child),
           ),
-          child: ColorFiltered(
-            colorFilter: fits
-                ? const ColorFilter.mode(Colors.transparent, BlendMode.dst)
-                : const ColorFilter.matrix(<double>[
-                    .33, .33, .33, 0, 0, //
-                    .33, .33, .33, 0, 0, //
-                    .33, .33, .33, 0, 0, //
-                    0, 0, 0, .45, 0,
-                  ]),
-            child: CustomPaint(
-              size: Size(s.width * _trayCell, s.height * _trayCell),
-              painter: PiecePainter(
-                shape: s,
-                color: skin.forPiece(s.color),
-                cell: _trayCell,
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey('spin$i-${_spinGen[i] ?? 0}'),
+            tween: Tween(begin: (_spinGen[i] ?? 0) == 0 ? 0 : -1, end: 0),
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutBack,
+            builder: (_, k, child) => Transform.rotate(
+              angle: k * math.pi / 2,
+              child: _armed == PowerUp.rotate
+                  ? Pulse(amount: .08, period: 450, child: child!)
+                  : child,
+            ),
+            child: ColorFiltered(
+              colorFilter: fits
+                  ? const ColorFilter.mode(Colors.transparent, BlendMode.dst)
+                  : const ColorFilter.matrix(<double>[
+                      .33, .33, .33, 0, 0, //
+                      .33, .33, .33, 0, 0, //
+                      .33, .33, .33, 0, 0, //
+                      0, 0, 0, .45, 0,
+                    ]),
+              child: CustomPaint(
+                size: Size(s.width * _trayCell, s.height * _trayCell),
+                painter: PiecePainter(
+                  shape: s,
+                  color: skin.forPiece(s.color),
+                  cell: _trayCell,
+                ),
               ),
             ),
           ),
@@ -905,6 +1297,230 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  Widget _armedHint(AppTheme t) {
+    final p = _armed;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: p == null
+          ? const SizedBox.shrink()
+          : GestureDetector(
+              key: ValueKey(p),
+              onTap: _disarm,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 6, 10, 6),
+                decoration: BoxDecoration(
+                  color: p.color.withValues(alpha: .9),
+                  borderRadius: BorderRadius.circular(999),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: .35)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: p.color.withValues(alpha: .5), blurRadius: 14)
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(p.icon, color: Colors.white, size: 18),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                          p == PowerUp.bomb
+                              ? 'Tap the board to blast'
+                              : 'Tap a piece to rotate',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontFamily: kFont,
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800)),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.close_rounded,
+                        color: Colors.white, size: 18),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _powerBar(AppTheme t) {
+    if (!_powerUpsAllowed) {
+      return Center(
+        child: Text('Daily Challenge: same board for everyone, no power-ups',
+            textAlign: TextAlign.center,
+            style: t.body(13, color: t.subtext, weight: FontWeight.w700)),
+      );
+    }
+    return ListenableBuilder(
+      listenable: AppState.instance,
+      builder: (_, __) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          for (final p in PowerUp.values)
+            _PowerButton(
+              p: p,
+              count: AppState.instance.powerUpCount(p),
+              armed: _armed == p,
+              enabled: !_over && (p != PowerUp.undo || _undo != null),
+              onTap: () => _onPowerUp(p),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reviveOffer(AppTheme t) {
+    final app = AppState.instance;
+    final rescues = _rescuePowerUps;
+    return Positioned.fill(
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: .62),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 26),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 380),
+              curve: Curves.easeOutBack,
+              builder: (_, k, child) =>
+                  Transform.scale(scale: .7 + .3 * k, child: child),
+              child: _Panel(
+                theme: t,
+                child: ListenableBuilder(
+                  listenable: Listenable.merge([app, Ads.instance]),
+                  builder: (_, __) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const ArcadeText('Out of Space!',
+                          size: 34,
+                          colors: [Color(0xFFFFB3B3), Color(0xFFFF4D5E)],
+                          stroke: Color(0xFF3D0610)),
+                      const SizedBox(height: 4),
+                      Text('Score ${_session.score}  ·  keep going?',
+                          style: t.body(15,
+                              color: t.subtext, weight: FontWeight.w700)),
+                      const SizedBox(height: 14),
+                      // Countdown ring.
+                      SizedBox(
+                        width: 74,
+                        height: 74,
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey('revive$_reviveGen'),
+                          tween: Tween(begin: 1, end: 0),
+                          duration:
+                              const Duration(seconds: ReviveRules.offerSeconds),
+                          onEnd: _declineRevive,
+                          builder: (_, v, __) => Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox.expand(
+                                child: CircularProgressIndicator(
+                                  value: v,
+                                  strokeWidth: 7,
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: .12),
+                                  valueColor: const AlwaysStoppedAnimation(
+                                      Color(0xFFFFC93C)),
+                                ),
+                              ),
+                              Text('${(v * ReviveRules.offerSeconds).ceil()}',
+                                  style: const TextStyle(
+                                      fontFamily: kFont,
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_canRevive) ...[
+                        Pulse(
+                          child: ChunkyButton(
+                            color: t.accent,
+                            height: 58,
+                            onPressed: Ads.instance.ready && !_reviveBusy
+                                ? () => _revive(viaAd: true)
+                                : null,
+                            child: _ButtonLabel(
+                                Icons.smart_display_rounded,
+                                Ads.instance.ready
+                                    ? 'Revive  ·  Watch ad'
+                                    : 'Ad loading…'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ChunkyButton(
+                          color: const Color(0xFFFFA41C),
+                          onPressed:
+                              app.coins >= ReviveRules.coinPrice && !_reviveBusy
+                                  ? () => _revive(viaAd: false)
+                                  : null,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text('Revive  ·  ',
+                                  style: TextStyle(
+                                      fontFamily: kFont,
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800)),
+                              const CoinIcon(size: 24),
+                              const SizedBox(width: 6),
+                              Text('${ReviveRules.coinPrice}',
+                                  style: const TextStyle(
+                                      fontFamily: kFont,
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (rescues.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Text('or use a power-up',
+                            style: t.body(13,
+                                color: t.subtext, weight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (final p in rescues)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                child: _PowerButton(
+                                  p: p,
+                                  count: app.powerUpCount(p),
+                                  armed: false,
+                                  enabled: !_reviveBusy,
+                                  onTap: () => _rescueWith(p),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      TextButton(
+                        onPressed: _reviveBusy ? null : _finishGame,
+                        child: Text('No thanks',
+                            style: t.body(15,
+                                color: t.subtext, weight: FontWeight.w700)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _results(AppTheme t) {
     final o = _outcome;
     final newBest = o?.isNewBest ?? false;
@@ -929,7 +1545,8 @@ class _GameScreenState extends State<GameScreen>
               top: 20,
               child: LightRays(
                 size: 520,
-                color: newBest ? const Color(0xFFFFD66B) : const Color(0xFF8FA2FF),
+                color:
+                    newBest ? const Color(0xFFFFD66B) : const Color(0xFF8FA2FF),
               ),
             ),
             if (newBest) const Positioned.fill(child: Confetti()),
@@ -940,8 +1557,11 @@ class _GameScreenState extends State<GameScreen>
                 children: [
                   if (newBest) ...[
                     const Icon(Icons.workspace_premium_rounded,
-                        color: Color(0xFFFFD34D), size: 64,
-                        shadows: [Shadow(color: Color(0xAAFFB321), blurRadius: 24)]),
+                        color: Color(0xFFFFD34D),
+                        size: 64,
+                        shadows: [
+                          Shadow(color: Color(0xAAFFB321), blurRadius: 24)
+                        ]),
                     const ArcadeText('New Best!', size: 46),
                   ] else
                     const ArcadeText('Game Over',
@@ -962,7 +1582,9 @@ class _GameScreenState extends State<GameScreen>
                           t.surface,
                         ],
                       ),
-                      border: Border.all(color: Colors.white.withValues(alpha: .18), width: 1.5),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: .18),
+                          width: 1.5),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: .4),
@@ -981,7 +1603,8 @@ class _GameScreenState extends State<GameScreen>
                                 letterSpacing: 2.5,
                                 fontWeight: FontWeight.w800)),
                         TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: _session.score.toDouble()),
+                          tween:
+                              Tween(begin: 0, end: _session.score.toDouble()),
                           duration: const Duration(milliseconds: 1100),
                           curve: Curves.easeOutCubic,
                           builder: (_, v, __) => ArcadeText('${v.round()}',
@@ -1019,15 +1642,22 @@ class _GameScreenState extends State<GameScreen>
                       color: t.accent,
                       width: 260,
                       height: 60,
-                      onPressed: _restart,
-                      child: const _ButtonLabel(Icons.replay_rounded, 'Play Again'),
+                      onPressed: () async {
+                        await Ads.instance.afterGame();
+                        if (mounted) _restart();
+                      },
+                      child: const _ButtonLabel(
+                          Icons.replay_rounded, 'Play Again'),
                     ),
                   ),
                   const SizedBox(height: 14),
                   ChunkyButton(
                     color: const Color(0xFF5865F2),
                     width: 260,
-                    onPressed: () => Navigator.of(context).maybePop(),
+                    onPressed: () async {
+                      await Ads.instance.afterGame();
+                      if (mounted) Navigator.of(context).maybePop();
+                    },
                     child: const _ButtonLabel(Icons.home_rounded, 'Home'),
                   ),
                 ],
@@ -1055,7 +1685,8 @@ class _GameScreenState extends State<GameScreen>
               end: Alignment.bottomCenter,
               colors: [Color.lerp(t.surface, Colors.white, .14)!, t.surface],
             ),
-            border: Border.all(color: Colors.white.withValues(alpha: .18), width: 1.5),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: .18), width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: .5),
@@ -1098,7 +1729,8 @@ class _GameScreenState extends State<GameScreen>
                   ChunkyButton(
                     color: t.accent,
                     onPressed: () => Navigator.of(ctx).pop(),
-                    child: const _ButtonLabel(Icons.play_arrow_rounded, 'Resume'),
+                    child:
+                        const _ButtonLabel(Icons.play_arrow_rounded, 'Resume'),
                   ),
                   const SizedBox(height: 12),
                   ChunkyButton(
@@ -1121,6 +1753,160 @@ class _GameScreenState extends State<GameScreen>
                 ],
               );
             },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Panel extends StatelessWidget {
+  const _Panel({required this.theme, required this.child});
+  final AppTheme theme;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.lerp(theme.surface, Colors.white, .14)!,
+              theme.surface
+            ],
+          ),
+          border: Border.all(
+              color: Colors.white.withValues(alpha: .18), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .5),
+              blurRadius: 30,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: child,
+      );
+}
+
+class _PowerIcon extends StatelessWidget {
+  const _PowerIcon({required this.p, this.size = 54});
+  final PowerUp p;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            center: const Alignment(-.3, -.45),
+            colors: [
+              Color.lerp(p.color, Colors.white, .45)!,
+              p.color,
+              Color.lerp(p.color, Colors.black, .35)!,
+            ],
+            stops: const [0, .55, 1],
+          ),
+          border:
+              Border.all(color: Colors.white.withValues(alpha: .5), width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .35),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child:
+            Icon(p.icon, color: Colors.white, size: size * .52, shadows: const [
+          Shadow(
+              color: Color(0x66000000), offset: Offset(0, 1.5), blurRadius: 2),
+        ]),
+      );
+}
+
+/// A round power-up button with its count badge (or price when empty).
+class _PowerButton extends StatelessWidget {
+  const _PowerButton({
+    required this.p,
+    required this.count,
+    required this.armed,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final PowerUp p;
+  final int count;
+  final bool armed;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget icon = _PowerIcon(p: p);
+    if (armed) {
+      icon = Pulse(
+        amount: .1,
+        period: 450,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(color: p.color, blurRadius: 18, spreadRadius: 3),
+              const BoxShadow(
+                  color: Colors.white, blurRadius: 0, spreadRadius: 2.5),
+            ],
+          ),
+          child: icon,
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: enabled ? 1 : .4,
+        child: SizedBox(
+          width: 66,
+          height: 66,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              icon,
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 24),
+                  height: 24,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: count > 0
+                        ? const Color(0xFFF23F5B)
+                        : const Color(0xFF2A2C7A),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Center(
+                    child: count > 0
+                        ? Text('$count',
+                            style: const TextStyle(
+                                fontFamily: kFont,
+                                color: Colors.white,
+                                fontSize: 12,
+                                height: 1,
+                                fontWeight: FontWeight.w800))
+                        : const Icon(Icons.add_rounded,
+                            color: Colors.white, size: 16),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1151,9 +1937,15 @@ class _BestBadge extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   center: Alignment(-.3, -.4),
-                  colors: [Color(0xFFFFF1A8), Color(0xFFFFB21E), Color(0xFFC77A0C)],
+                  colors: [
+                    Color(0xFFFFF1A8),
+                    Color(0xFFFFB21E),
+                    Color(0xFFC77A0C)
+                  ],
                 ),
-                boxShadow: [BoxShadow(color: Color(0x88FFB321), blurRadius: 12)],
+                boxShadow: [
+                  BoxShadow(color: Color(0x88FFB321), blurRadius: 12)
+                ],
               ),
               child: const Icon(Icons.emoji_events_rounded,
                   color: Color(0xFF8A4E00), size: 20),
@@ -1207,7 +1999,9 @@ class _ComboBadge extends StatelessWidget {
             gradient: const LinearGradient(
                 colors: [Color(0xFFFFB02E), Color(0xFFFF4D3A)]),
             border: Border.all(color: Colors.white.withValues(alpha: .35)),
-            boxShadow: const [BoxShadow(color: Color(0x88FF6A2E), blurRadius: 14)],
+            boxShadow: const [
+              BoxShadow(color: Color(0x88FF6A2E), blurRadius: 14)
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1229,7 +2023,8 @@ class _ComboBadge extends StatelessWidget {
 }
 
 class _StatChip extends StatelessWidget {
-  const _StatChip({required this.icon, required this.label, required this.value});
+  const _StatChip(
+      {required this.icon, required this.label, required this.value});
   final Widget icon;
   final String label;
   final String value;
@@ -1280,8 +2075,9 @@ class _ButtonLabel extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white, size: 26,
-              shadows: const [Shadow(color: Color(0x55000000), offset: Offset(0, 1.5))]),
+          Icon(icon, color: Colors.white, size: 26, shadows: const [
+            Shadow(color: Color(0x55000000), offset: Offset(0, 1.5))
+          ]),
           const SizedBox(width: 8),
           Text(label,
               style: const TextStyle(
@@ -1289,7 +2085,9 @@ class _ButtonLabel extends StatelessWidget {
                   color: Colors.white,
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
-                  shadows: [Shadow(color: Color(0x55000000), offset: Offset(0, 1.5))])),
+                  shadows: [
+                    Shadow(color: Color(0x55000000), offset: Offset(0, 1.5))
+                  ])),
         ],
       );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/modes.dart';
+import '../game/powerups.dart';
 import '../game/skins.dart';
 import 'achievements.dart';
 import 'missions.dart';
@@ -37,6 +38,7 @@ class AppState extends ChangeNotifier {
   static const _kOwnedSkins = 'owned_skins';
   static const _kSound = 'sound_on';
   static const _kMusic = 'music_on';
+  static const _kPowerUpPrefix = 'powerup_';
   static const _kHaptics = 'haptics_on';
   static const _kReminders = 'reminders_on';
   static const _kNotifAsked = 'notif_asked';
@@ -61,6 +63,7 @@ class AppState extends ChangeNotifier {
   bool notifAsked = false;
 
   int coins = 0;
+  final Map<PowerUp, int> powerUps = {};
   int bestClassic = 0;
   bool adsRemoved = false;
 
@@ -75,7 +78,8 @@ class AppState extends ChangeNotifier {
     final app = instance;
     app._prefs = prefs;
 
-    app.theme = AppTheme.byName(prefs.getString(_kTheme) ?? AppTheme.indigo.name);
+    app.theme =
+        AppTheme.byName(prefs.getString(_kTheme) ?? AppTheme.indigo.name);
     app.skin = Skins.byId(prefs.getString(_kSkin) ?? Skins.classic.id);
     app._ownedThemes = (prefs.getStringList(_kOwnedThemes) ?? const []).toSet();
     app._ownedSkins = (prefs.getStringList(_kOwnedSkins) ?? const []).toSet();
@@ -88,6 +92,10 @@ class AppState extends ChangeNotifier {
     app.notifAsked = prefs.getBool(_kNotifAsked) ?? false;
 
     app.coins = prefs.getInt(_kCoins) ?? 0;
+    for (final p in PowerUp.values) {
+      app.powerUps[p] =
+          prefs.getInt('$_kPowerUpPrefix${p.name}') ?? PowerUp.starterCount;
+    }
     app.bestClassic = prefs.getInt(_kBestClassic) ?? 0;
     app.adsRemoved = prefs.getBool(_kAdsRemoved) ?? false;
 
@@ -141,6 +149,28 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  int powerUpCount(PowerUp p) => powerUps[p] ?? 0;
+
+  void addPowerUp(PowerUp p, [int n = 1]) {
+    powerUps[p] = powerUpCount(p) + n;
+    _prefs.setInt('$_kPowerUpPrefix${p.name}', powerUps[p]!);
+    notifyListeners();
+  }
+
+  /// Spends one [p] if the player has any. Returns whether it was used.
+  bool usePowerUp(PowerUp p) {
+    if (powerUpCount(p) <= 0) return false;
+    addPowerUp(p, -1);
+    return true;
+  }
+
+  /// Buys one [p] for coins. Returns whether the purchase went through.
+  bool buyPowerUp(PowerUp p) {
+    if (!spendCoins(p.price)) return false;
+    addPowerUp(p);
+    return true;
+  }
+
   bool spendCoins(int amount) {
     if (coins < amount) return false;
     coins -= amount;
@@ -190,7 +220,8 @@ class AppState extends ChangeNotifier {
     final seed = DailyChallenge.seedFor(day);
     if (_lastDailySeed == seed) return; // Already counted today.
     final yesterdaySeed = DailyChallenge.seedFor(
-        DateTime(day.year, day.month, day.day).subtract(const Duration(days: 1)));
+        DateTime(day.year, day.month, day.day)
+            .subtract(const Duration(days: 1)));
     dailyStreak = _lastDailySeed == yesterdaySeed ? dailyStreak + 1 : 1;
     _lastDailySeed = seed;
     _prefs.setInt(_kDailyStreak, dailyStreak);

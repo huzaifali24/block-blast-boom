@@ -45,11 +45,13 @@ class BlockArt {
   static void cell(Canvas canvas, Rect r, AppTheme t) {
     final px = r.width.round().clamp(1, 512);
     _trim(_cells);
-    final pic = _cells[Object.hash(t.name, px)] ??= _recordCell(t, px.toDouble());
+    final pic =
+        _cells[Object.hash(t.name, px)] ??= _recordCell(t, px.toDouble());
     _replay(canvas, r, px, pic, 1);
   }
 
-  static void _replay(Canvas canvas, Rect r, int px, ui.Picture pic, double opacity) {
+  static void _replay(
+      Canvas canvas, Rect r, int px, ui.Picture pic, double opacity) {
     canvas.save();
     canvas.translate(r.left, r.top);
     final k = r.width / px;
@@ -74,7 +76,8 @@ class BlockArt {
 
     // Soft contact shadow just below the block.
     c.drawRRect(
-      RRect.fromRectAndRadius(outer.shift(Offset(0, s * .035)), Radius.circular(radius)),
+      RRect.fromRectAndRadius(
+          outer.shift(Offset(0, s * .035)), Radius.circular(radius)),
       Paint()..color = Colors.black.withValues(alpha: .32),
     );
 
@@ -170,8 +173,10 @@ class BlockArt {
         ..strokeWidth = s * .022
         ..strokeCap = StrokeCap.round,
     );
-    final spark = Offset(face.left + face.width * .2, face.top + face.height * .2);
-    c.drawCircle(spark, s * .05, Paint()..color = Colors.white.withValues(alpha: .9));
+    final spark =
+        Offset(face.left + face.width * .2, face.top + face.height * .2);
+    c.drawCircle(
+        spark, s * .05, Paint()..color = Colors.white.withValues(alpha: .9));
     c.drawCircle(spark + Offset(s * .08, s * .01), s * .022,
         Paint()..color = Colors.white.withValues(alpha: .7));
 
@@ -256,8 +261,9 @@ class PiecePainter extends CustomPainter {
       }
     }
     for (final c in shape.cells) {
-      BlockArt.block(canvas, Rect.fromLTWH(c.x * cell, c.y * cell, cell, cell),
-          color, opacity: opacity);
+      BlockArt.block(
+          canvas, Rect.fromLTWH(c.x * cell, c.y * cell, cell, cell), color,
+          opacity: opacity);
     }
   }
 
@@ -326,7 +332,8 @@ class BoardPainter extends CustomPainter {
 
     for (var y = 0; y < n; y++) {
       for (var x = 0; x < n; x++) {
-        BlockArt.cell(canvas, Rect.fromLTWH(x * cell, y * cell, cell, cell), theme);
+        BlockArt.cell(
+            canvas, Rect.fromLTWH(x * cell, y * cell, cell, cell), theme);
       }
     }
 
@@ -340,7 +347,8 @@ class BoardPainter extends CustomPainter {
 
         if (v == -1) {
           if (ghost.contains(i)) {
-            BlockArt.block(canvas, rect, ghostColor!, opacity: inPreview ? 1 : .42);
+            BlockArt.block(canvas, rect, ghostColor!,
+                opacity: inPreview ? 1 : .42);
           }
           continue;
         }
@@ -349,14 +357,17 @@ class BoardPainter extends CustomPainter {
         if (greyT > 0 && y < greyT * n) color = kLockedGrey;
         final r = popCells.contains(i) && popScale != 1
             ? Rect.fromCenter(
-                center: rect.center, width: cell * popScale, height: cell * popScale)
+                center: rect.center,
+                width: cell * popScale,
+                height: cell * popScale)
             : rect;
         BlockArt.block(canvas, r, color);
       }
     }
 
     // Shimmering glow over lines the current drop would complete.
-    if (ghostColor != null && (previewRows.isNotEmpty || previewCols.isNotEmpty)) {
+    if (ghostColor != null &&
+        (previewRows.isNotEmpty || previewCols.isNotEmpty)) {
       final glow = Paint()
         ..blendMode = BlendMode.plus
         ..color = Colors.white
@@ -364,14 +375,16 @@ class BoardPainter extends CustomPainter {
       for (final y in previewRows) {
         canvas.drawRRect(
             RRect.fromRectAndRadius(
-                Rect.fromLTWH(0, y * cell, size.width, cell).deflate(cell * .04),
+                Rect.fromLTWH(0, y * cell, size.width, cell)
+                    .deflate(cell * .04),
                 Radius.circular(cell * .15)),
             glow);
       }
       for (final x in previewCols) {
         canvas.drawRRect(
             RRect.fromRectAndRadius(
-                Rect.fromLTWH(x * cell, 0, cell, size.height).deflate(cell * .04),
+                Rect.fromLTWH(x * cell, 0, cell, size.height)
+                    .deflate(cell * .04),
                 Radius.circular(cell * .15)),
             glow);
       }
@@ -424,9 +437,35 @@ class ClearFx {
   final int strength;
 }
 
-/// Builds the burst for a clear, sweeping outward from [from] (board px).
+/// Builds the burst for a line clear, sweeping outward from [from].
 ClearFx buildClearFx({
   required PlacementResult result,
+  required int boardSize,
+  required double cell,
+  required Offset from,
+  required BlockSkin skin,
+  required math.Random rng,
+}) =>
+    buildBurstFx(
+      cleared: result.clearedCellColors,
+      rows: result.clearedRows,
+      cols: result.clearedCols,
+      strength: result.linesCleared,
+      boardSize: boardSize,
+      cell: cell,
+      from: from,
+      skin: skin,
+      rng: rng,
+    );
+
+/// Builds a burst for any set of destroyed cells (line clears, Bomb,
+/// Revive): [cleared] maps board index -> color index. [rows]/[cols] get
+/// light beams; [strength] >= 2 adds a shockwave.
+ClearFx buildBurstFx({
+  required Map<int, int> cleared,
+  List<int> rows = const [],
+  List<int> cols = const [],
+  required int strength,
   required int boardSize,
   required double cell,
   required Offset from,
@@ -436,8 +475,8 @@ ClearFx buildClearFx({
   final cells = <ClearingCell>[];
   final particles = <Particle>[];
   final maxDist = boardSize * cell;
-  final many = result.clearedCells.length > 30;
-  for (final e in result.clearedCellColors.entries) {
+  final many = cleared.length > 30;
+  for (final e in cleared.entries) {
     final x = e.key % boardSize, y = e.key ~/ boardSize;
     final center = Offset((x + .5) * cell, (y + .5) * cell);
     final delay = ((center - from).distance / maxDist) * .3;
@@ -460,8 +499,7 @@ ClearFx buildClearFx({
       ));
     }
   }
-  return ClearFx(cells, particles, result.clearedRows, result.clearedCols, from,
-      result.linesCleared);
+  return ClearFx(cells, particles, rows, cols, from, strength);
 }
 
 /// Animates a [ClearFx]; [t] runs 0..1 over the whole effect.
@@ -492,7 +530,8 @@ class ClearFxPainter extends CustomPainter {
       canvas.rotate(c.spin * Curves.easeIn.transform(lt) * 1.2);
       BlockArt.block(
         canvas,
-        Rect.fromCenter(center: Offset.zero, width: cell * scale, height: cell * scale),
+        Rect.fromCenter(
+            center: Offset.zero, width: cell * scale, height: cell * scale),
         color,
         opacity: 1 - lt * .35,
       );
@@ -533,9 +572,13 @@ class ClearFxPainter extends CustomPainter {
     void beam(Rect core, bool horizontal) {
       final glowRect = horizontal
           ? Rect.fromCenter(
-              center: core.center, width: core.width + cell, height: cell * grow)
+              center: core.center,
+              width: core.width + cell,
+              height: cell * grow)
           : Rect.fromCenter(
-              center: core.center, width: cell * grow, height: core.height + cell);
+              center: core.center,
+              width: cell * grow,
+              height: core.height + cell);
       canvas.drawRect(
         glowRect,
         Paint()
@@ -564,7 +607,8 @@ class ClearFxPainter extends CustomPainter {
     if (fx.strength < 2) return;
     final st = (t / .6).clamp(0.0, 1.0);
     if (st >= 1) return;
-    final r = Curves.easeOut.transform(st) * size.width * (.5 + fx.strength * .12);
+    final r =
+        Curves.easeOut.transform(st) * size.width * (.5 + fx.strength * .12);
     canvas.drawCircle(
       fx.origin,
       r,
