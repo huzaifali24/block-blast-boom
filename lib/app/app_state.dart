@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../game/levels.dart';
 import '../game/modes.dart';
 import '../game/powerups.dart';
 import '../game/skins.dart';
@@ -39,6 +40,7 @@ class AppState extends ChangeNotifier {
   static const _kSound = 'sound_on';
   static const _kMusic = 'music_on';
   static const _kPowerUpPrefix = 'powerup_';
+  static const _kLevelStars = 'level_stars';
   static const _kHaptics = 'haptics_on';
   static const _kReminders = 'reminders_on';
   static const _kNotifAsked = 'notif_asked';
@@ -64,6 +66,9 @@ class AppState extends ChangeNotifier {
 
   int coins = 0;
   final Map<PowerUp, int> powerUps = {};
+
+  /// Adventure: level number -> best stars (1..3). Absent = not cleared.
+  final Map<int, int> levelStars = {};
   int bestClassic = 0;
   bool adsRemoved = false;
 
@@ -92,6 +97,13 @@ class AppState extends ChangeNotifier {
     app.notifAsked = prefs.getBool(_kNotifAsked) ?? false;
 
     app.coins = prefs.getInt(_kCoins) ?? 0;
+    app.levelStars.clear();
+    for (final e in prefs.getStringList(_kLevelStars) ?? const <String>[]) {
+      final parts = e.split(':');
+      if (parts.length == 2) {
+        app.levelStars[int.parse(parts[0])] = int.parse(parts[1]);
+      }
+    }
     for (final p in PowerUp.values) {
       app.powerUps[p] =
           prefs.getInt('$_kPowerUpPrefix${p.name}') ?? PowerUp.starterCount;
@@ -147,6 +159,36 @@ class AppState extends ChangeNotifier {
     coins += amount;
     _prefs.setInt(_kCoins, coins);
     notifyListeners();
+  }
+
+  /// Highest Adventure level the player may start.
+  int get unlockedLevel {
+    var n = 1;
+    while (levelStars.containsKey(n) && n < Levels.count) {
+      n++;
+    }
+    return n;
+  }
+
+  int get totalStars => levelStars.values.fold(0, (a, b) => a + b);
+
+  /// Records a won level and pays out: first-clear coins plus coins for
+  /// each star better than the previous best. Returns the coins awarded.
+  int completeLevel(Level level, int stars) {
+    final before = levelStars[level.number];
+    var coinsEarned = 0;
+    if (before == null) coinsEarned += level.firstClearCoins;
+    final gained = stars - (before ?? 0);
+    if (gained > 0) {
+      coinsEarned += gained * Level.coinsPerStar;
+      levelStars[level.number] = stars;
+      _prefs.setStringList(
+          _kLevelStars, [for (final e in levelStars.entries) '${e.key}:${e.value}']);
+    }
+    coins += coinsEarned;
+    _prefs.setInt(_kCoins, coins);
+    notifyListeners();
+    return coinsEarned;
   }
 
   int powerUpCount(PowerUp p) => powerUps[p] ?? 0;

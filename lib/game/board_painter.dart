@@ -294,6 +294,7 @@ class BoardPainter extends CustomPainter {
     this.popT = 1,
     this.greyT = 0,
     this.pulse = 0,
+    this.gems = const {},
   });
 
   final Board board;
@@ -314,6 +315,9 @@ class BoardPainter extends CustomPainter {
 
   /// 0..1 looping value used to make preview lines shimmer.
   final double pulse;
+
+  /// Adventure: board cells whose block holds a gem.
+  final Set<int> gems;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -365,6 +369,12 @@ class BoardPainter extends CustomPainter {
       }
     }
 
+    for (final i in gems) {
+      if (board.cells[i] == -1) continue;
+      final x = i % n, y = i ~/ n;
+      paintGem(canvas, Offset((x + .5) * cell, (y + .5) * cell), cell * .5);
+    }
+
     // Shimmering glow over lines the current drop would complete.
     if (ghostColor != null &&
         (previewRows.isNotEmpty || previewCols.isNotEmpty)) {
@@ -393,6 +403,46 @@ class BoardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BoardPainter old) => true;
+}
+
+/// A faceted diamond centred on [c], [size] wide (Adventure gems).
+void paintGem(Canvas canvas, Offset c, double size) {
+  final w = size / 2, h = size * .45;
+  final top = c.dy - h * .55, mid = c.dy - h * .1, bottom = c.dy + h * .95;
+  final outline = Path()
+    ..moveTo(c.dx - w * .55, top)
+    ..lineTo(c.dx + w * .55, top)
+    ..lineTo(c.dx + w, mid)
+    ..lineTo(c.dx, bottom)
+    ..lineTo(c.dx - w, mid)
+    ..close();
+  canvas.drawPath(
+    outline.shift(Offset(0, size * .06)),
+    Paint()..color = Colors.black.withValues(alpha: .35),
+  );
+  final bounds = Rect.fromLTRB(c.dx - w, top, c.dx + w, bottom);
+  canvas.drawPath(
+    outline,
+    Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFFFFFFF), Color(0xFF9FF3FF), Color(0xFF29B6F6)],
+        stops: [0, .4, 1],
+      ).createShader(bounds),
+  );
+  final facet = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = size * .035
+    ..color = const Color(0xFF0B5C8C).withValues(alpha: .75);
+  canvas.drawPath(outline, facet);
+  canvas.drawLine(Offset(c.dx - w, mid), Offset(c.dx + w, mid), facet);
+  canvas.drawLine(Offset(c.dx - w * .55, top), Offset(c.dx - w * .25, mid), facet);
+  canvas.drawLine(Offset(c.dx + w * .55, top), Offset(c.dx + w * .25, mid), facet);
+  canvas.drawLine(Offset(c.dx - w * .25, mid), Offset(c.dx, bottom), facet);
+  canvas.drawLine(Offset(c.dx + w * .25, mid), Offset(c.dx, bottom), facet);
+  canvas.drawCircle(Offset(c.dx - w * .35, top + h * .25), size * .07,
+      Paint()..color = Colors.white);
 }
 
 /// A block that was just cleared, bursting out of the board.

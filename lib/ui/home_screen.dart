@@ -7,6 +7,7 @@ import '../app/theme.dart';
 import '../game/board_painter.dart';
 import '../game/game_screen.dart';
 import '../game/modes.dart';
+import 'adventure_screen.dart';
 import 'fx.dart';
 import 'widgets.dart';
 
@@ -95,15 +96,32 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              PrimaryButton(
-                label: app.dailyDoneToday
-                    ? 'DAILY  ·  BEST ${app.bestDailyFor(today)}'
-                    : 'DAILY CHALLENGE',
-                theme: t,
-                color: const Color(0xFF9B5BF5),
-                icon: Icons.calendar_month_rounded,
-                onPressed: () =>
-                    _play(context, GameScreen(mode: GameMode.daily, day: today)),
+              Row(
+                children: [
+                  Expanded(
+                    child: PrimaryButton(
+                      label: 'LEVEL ${app.unlockedLevel}',
+                      theme: t,
+                      color: const Color(0xFFFF8A1C),
+                      icon: Icons.map_rounded,
+                      onPressed: () =>
+                          _play(context, const AdventureScreen()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: PrimaryButton(
+                      label: app.dailyDoneToday
+                          ? 'BEST ${app.bestDailyFor(today)}'
+                          : 'DAILY',
+                      theme: t,
+                      color: const Color(0xFF9B5BF5),
+                      icon: Icons.calendar_month_rounded,
+                      onPressed: () => _play(
+                          context, GameScreen(mode: GameMode.daily, day: today)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

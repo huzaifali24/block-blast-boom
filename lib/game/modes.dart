@@ -7,6 +7,10 @@ enum GameMode {
   /// One board a day, seeded from the calendar date so every player sees the
   /// exact same sequence of trays. Best score of the day is what counts.
   daily,
+
+  /// One Adventure level: a fixed starting board and a goal to reach
+  /// (see `levels.dart`).
+  adventure,
 }
 
 /// Seeding and sizing for [GameMode.daily]. Kept separate from

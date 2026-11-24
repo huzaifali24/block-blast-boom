@@ -13,6 +13,7 @@ import '../ui/fx.dart';
 import '../ui/widgets.dart';
 import 'board_painter.dart';
 import 'engine.dart';
+import 'levels.dart';
 import 'modes.dart';
 import 'powerups.dart';
 import 'session.dart';
@@ -22,13 +23,16 @@ import 'skins.dart';
 /// game-over flow. Works for both [GameMode.classic] and [GameMode.daily] —
 /// only how the [GameSession] is seeded differs.
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key, required this.mode, this.day});
+  const GameScreen({super.key, required this.mode, this.day, this.level});
 
   final GameMode mode;
 
   /// Which calendar day's board to play. Required for [GameMode.daily];
   /// ignored otherwise. Defaults to today.
   final DateTime? day;
+
+  /// The Adventure level to play ([GameMode.adventure] only).
+  final Level? level;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -107,6 +111,12 @@ class _GameScreenState extends State<GameScreen>
   bool _reviveBusy = false;
   int _reviveGen = 0;
 
+  // Adventure.
+  bool _won = false;
+  bool _showWin = false;
+  int _wonStars = 0;
+  int _wonCoins = 0;
+
   // Game over.
   bool _over = false;
   bool _showResults = false;
@@ -126,10 +136,17 @@ class _GameScreenState extends State<GameScreen>
   @visibleForTesting
   void triggerGameOver() => _startGameOver();
 
-  GameSession _newSession() => widget.mode == GameMode.daily
-      ? GameSession.seeded(DailyChallenge.seedFor(_day),
-          boardSize: DailyChallenge.boardSize)
-      : GameSession.classic();
+  @visibleForTesting
+  bool checkLevelWon() => _checkLevelWon();
+
+  bool get _adventure => widget.level != null;
+
+  GameSession _newSession() => widget.level != null
+      ? GameSession.adventure(widget.level!)
+      : widget.mode == GameMode.daily
+          ? GameSession.seeded(DailyChallenge.seedFor(_day),
+              boardSize: DailyChallenge.boardSize)
+          : GameSession.classic();
 
   void _restart() {
     _pulse.stop();
@@ -151,6 +168,8 @@ class _GameScreenState extends State<GameScreen>
       _armed = null;
       _undo = null;
       _revivesUsed = 0;
+      _won = false;
+      _showWin = false;
       _offerRevive = false;
       _reviveBusy = false;
       _gen++;
@@ -356,6 +375,7 @@ class _GameScreenState extends State<GameScreen>
       if (haptics) HapticFeedback.lightImpact();
     }
 
+    if (_checkLevelWon()) return;
     if (_session.gameOver) {
       Future<void>.delayed(const Duration(milliseconds: 650), _startGameOver);
     }
@@ -403,7 +423,38 @@ class _GameScreenState extends State<GameScreen>
     });
   }
 
-  bool get _powerUpsAllowed => widget.mode == GameMode.classic;
+  bool get _powerUpsAllowed => widget.mode != GameMode.daily;
+
+  /// Adventure: when the goal is reached, celebrate and pay out (once).
+  bool _checkLevelWon() {
+    final level = widget.level;
+    if (level == null || _won || !_session.levelComplete) return false;
+    _won = true;
+    _armed = null;
+    final stars = level.starsFor(_session.movesPlayed);
+    final coins = AppState.instance.completeLevel(level, stars);
+    Future<void>.delayed(const Duration(milliseconds: 750), () {
+      if (!mounted) return;
+      setState(() {
+        _wonStars = stars;
+        _wonCoins = coins;
+        _showWin = true;
+      });
+      Sound.instance.play(SoundEffect.coin);
+      if (AppState.instance.hapticsOn) HapticFeedback.heavyImpact();
+    });
+    return true;
+  }
+
+  void _openLevel(Level level) {
+    Navigator.of(context).pushReplacement(PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 350),
+      pageBuilder: (_, __, ___) =>
+          GameScreen(mode: GameMode.adventure, level: level),
+      transitionsBuilder: (_, a, __, child) =>
+          FadeTransition(opacity: a, child: child),
+    ));
+  }
 
   bool get _canRevive => _powerUpsAllowed && _revivesUsed < ReviveRules.perGame;
 
@@ -420,6 +471,13 @@ class _GameScreenState extends State<GameScreen>
   /// The game is really over: record it and show the results.
   void _finishGame() {
     if (!mounted || _showResults) return;
+    if (_adventure) {
+      setState(() {
+        _offerRevive = false;
+        _showResults = true;
+      });
+      return;
+    }
     final outcome = AppState.instance.recordGameResult(
       mode: _session.mode,
       score: _session.score,
@@ -486,6 +544,7 @@ class _GameScreenState extends State<GameScreen>
     });
     Sound.instance.play(SoundEffect.combo);
     if (app.hapticsOn) HapticFeedback.heavyImpact();
+    _checkLevelWon();
   }
 
   /// From the stuck-board offer: use an owned Bomb or Shuffle instead.
@@ -591,6 +650,7 @@ class _GameScreenState extends State<GameScreen>
     });
     Sound.instance.play(SoundEffect.combo);
     if (app.hapticsOn) HapticFeedback.heavyImpact();
+    if (_checkLevelWon()) return;
     _checkStuckAfterPowerUp();
   }
 
@@ -771,6 +831,7 @@ class _GameScreenState extends State<GameScreen>
               if (_flashGen > 0) _flash(),
               if (_offerRevive) _reviveOffer(t),
               if (_showResults) _results(t),
+              if (_showWin) _levelWin(t),
             ],
           ),
         ),
@@ -786,7 +847,10 @@ class _GameScreenState extends State<GameScreen>
         children: [
           Row(
             children: [
-              _BestBadge(best: _best, theme: t),
+              if (widget.level != null)
+                _LevelBadge(number: widget.level!.number)
+              else
+                _BestBadge(best: _best, theme: t),
               Expanded(
                 child: Center(
                   child: AnimatedSwitcher(
@@ -841,6 +905,11 @@ class _GameScreenState extends State<GameScreen>
               ],
             ),
           ),
+          if (widget.level != null)
+            _GoalBar(
+              level: widget.level!,
+              progress: _session.progressFor(widget.level!.goal),
+            ),
         ],
       ),
     );
@@ -958,6 +1027,7 @@ class _GameScreenState extends State<GameScreen>
                                 previewRows: _previewRows,
                                 previewCols: _previewCols,
                                 popCells: _popCells,
+                                gems: _session.gems,
                                 popT: popT,
                                 greyT: greyT,
                                 pulse: _pulse.value,
@@ -1521,6 +1591,125 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  static IconData _goalIcon(LevelGoal g) => switch (g) {
+        LevelGoal.score => Icons.star_rounded,
+        LevelGoal.lines => Icons.view_stream_rounded,
+        LevelGoal.gems => Icons.diamond_rounded,
+      };
+
+  Widget _levelWin(AppTheme t) {
+    final level = widget.level!;
+    final hasNext = level.number < Levels.count;
+    return Positioned.fill(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 450),
+        builder: (_, k, child) => ColoredBox(
+          color: Colors.black.withValues(alpha: .7 * k),
+          child: Opacity(
+            opacity: k,
+            child: Transform.scale(
+                scale: .85 + .15 * Curves.easeOutBack.transform(k), child: child),
+          ),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Positioned(
+                top: 20, child: LightRays(size: 520, color: Color(0xFFFFD66B))),
+            const Positioned.fill(child: Confetti()),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ArcadeText('Level ${level.number}', size: 30,
+                      colors: const [Colors.white, Color(0xFFCFD6FF)],
+                      stroke: const Color(0xFF14154A)),
+                  const ArcadeText('Complete!', size: 48),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (var i = 0; i < 3; i++)
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: Duration(milliseconds: 500 + i * 250),
+                          curve: Interval(.3 + i * .15, 1,
+                              curve: Curves.elasticOut),
+                          builder: (_, k, child) =>
+                              Transform.scale(scale: k, child: child),
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: i == 1 ? 16 : 0),
+                            child: Icon(Icons.star_rounded,
+                                size: i == 1 ? 86 : 68,
+                                color: i < _wonStars
+                                    ? const Color(0xFFFFCC33)
+                                    : Colors.white.withValues(alpha: .18),
+                                shadows: i < _wonStars
+                                    ? const [
+                                        Shadow(
+                                            color: Color(0xAAFF9F1C),
+                                            blurRadius: 18)
+                                      ]
+                                    : null),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _Panel(
+                    theme: t,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _StatChip(
+                            icon: Icon(_goalIcon(level.goal),
+                                color: const Color(0xFF7FE3FF), size: 24),
+                            label: 'MOVES',
+                            value: '${_session.movesPlayed}  (par ${level.par})',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _StatChip(
+                            icon: const CoinIcon(size: 22),
+                            label: 'COINS',
+                            value: '+$_wonCoins',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (hasNext)
+                    Pulse(
+                      child: ChunkyButton(
+                        color: t.accent,
+                        width: 260,
+                        height: 60,
+                        onPressed: () => _openLevel(Levels.get(level.number + 1)),
+                        child: const _ButtonLabel(
+                            Icons.arrow_forward_rounded, 'Next Level'),
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  ChunkyButton(
+                    color: const Color(0xFF5865F2),
+                    width: 260,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    child: const _ButtonLabel(Icons.map_rounded, 'Map'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _results(AppTheme t) {
     final o = _outcome;
     final newBest = o?.isNewBest ?? false;
@@ -1555,7 +1744,12 @@ class _GameScreenState extends State<GameScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (newBest) ...[
+                  if (_adventure)
+                    const ArcadeText('Level Failed',
+                        size: 40,
+                        colors: [Color(0xFFFFB3B3), Color(0xFFFF4D5E)],
+                        stroke: Color(0xFF3D0610))
+                  else if (newBest) ...[
                     const Icon(Icons.workspace_premium_rounded,
                         color: Color(0xFFFFD34D),
                         size: 64,
@@ -1615,22 +1809,43 @@ class _GameScreenState extends State<GameScreen>
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(
-                              child: _StatChip(
-                                icon: const Icon(Icons.emoji_events_rounded,
-                                    color: Color(0xFFFFC93C), size: 24),
-                                label: 'BEST',
-                                value: '$_best',
+                            if (_adventure) ...[
+                              Expanded(
+                                child: _StatChip(
+                                  icon: Icon(_goalIcon(widget.level!.goal),
+                                      color: const Color(0xFF7FE3FF), size: 24),
+                                  label: widget.level!.goal.label.toUpperCase(),
+                                  value:
+                                      '${_session.progressFor(widget.level!.goal)}/${widget.level!.target}',
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _StatChip(
-                                icon: const CoinIcon(size: 22),
-                                label: 'COINS',
-                                value: '+${o?.coinsEarned ?? 0}',
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _StatChip(
+                                  icon: const Icon(Icons.flag_rounded,
+                                      color: Color(0xFFFFC93C), size: 24),
+                                  label: 'LEVEL',
+                                  value: '${widget.level!.number}',
+                                ),
                               ),
-                            ),
+                            ] else ...[
+                              Expanded(
+                                child: _StatChip(
+                                  icon: const Icon(Icons.emoji_events_rounded,
+                                      color: Color(0xFFFFC93C), size: 24),
+                                  label: 'BEST',
+                                  value: '$_best',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _StatChip(
+                                  icon: const CoinIcon(size: 22),
+                                  label: 'COINS',
+                                  value: '+${o?.coinsEarned ?? 0}',
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],
@@ -1646,8 +1861,8 @@ class _GameScreenState extends State<GameScreen>
                         await Ads.instance.afterGame();
                         if (mounted) _restart();
                       },
-                      child: const _ButtonLabel(
-                          Icons.replay_rounded, 'Play Again'),
+                      child: _ButtonLabel(Icons.replay_rounded,
+                          _adventure ? 'Retry' : 'Play Again'),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -1658,7 +1873,9 @@ class _GameScreenState extends State<GameScreen>
                       await Ads.instance.afterGame();
                       if (mounted) Navigator.of(context).maybePop();
                     },
-                    child: const _ButtonLabel(Icons.home_rounded, 'Home'),
+                    child: _adventure
+                        ? const _ButtonLabel(Icons.map_rounded, 'Map')
+                        : const _ButtonLabel(Icons.home_rounded, 'Home'),
                   ),
                 ],
               ),
@@ -1909,6 +2126,95 @@ class _PowerButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LevelBadge extends StatelessWidget {
+  const _LevelBadge({required this.number});
+  final int number;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(12, 6, 16, 6),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFFFFB02E), Color(0xFFFF7A1A)]),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: .35)),
+          boxShadow: const [BoxShadow(color: Color(0x55FF8A1C), blurRadius: 12)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.flag_rounded, color: Colors.white, size: 22),
+            const SizedBox(width: 6),
+            Text('LEVEL $number',
+                style: const TextStyle(
+                    fontFamily: kFont,
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800)),
+          ],
+        ),
+      );
+}
+
+/// Adventure goal and live progress under the score.
+class _GoalBar extends StatelessWidget {
+  const _GoalBar({required this.level, required this.progress});
+  final Level level;
+  final int progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = (progress / level.target).clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 30),
+      child: Row(
+        children: [
+          Icon(_GameScreenState._goalIcon(level.goal),
+              color: const Color(0xFF7FE3FF), size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: SizedBox(
+                    height: 22,
+                    child: Stack(
+                      children: [
+                        Container(color: Colors.black.withValues(alpha: .35)),
+                        FractionallySizedBox(
+                          widthFactor: v,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                                Color(0xFF3FD7FF),
+                                Color(0xFF3FD16B),
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Text(
+                    '${level.goal.describe(level.target)}   ${progress.clamp(0, level.target)}/${level.target}',
+                    style: const TextStyle(
+                        fontFamily: kFont,
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 3)])),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

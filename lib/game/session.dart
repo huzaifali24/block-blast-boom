@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'engine.dart';
+import 'levels.dart';
 import 'modes.dart';
 
 /// Mutable play state for one game: the board, the current tray of up to
@@ -13,11 +14,25 @@ class GameSession {
     required this.mode,
     int? seed,
     int boardSize = 8,
+    this.level,
   })  : board = Board(boardSize),
         _bag = PieceBag(Random(seed ?? _randomSeed())),
         tray = List<PieceShape?>.filled(3, null, growable: false) {
+    final l = level;
+    if (l != null) {
+      l.prefilled.forEach((i, c) => board.cells[i] = c);
+      gems.addAll(l.gems);
+    }
     _refillIfEmpty();
   }
+
+  /// An Adventure level: its starting board, gems and seeded pieces.
+  factory GameSession.adventure(Level level) => GameSession(
+        mode: GameMode.adventure,
+        seed: level.seed,
+        boardSize: Levels.boardSize,
+        level: level,
+      );
 
   /// A seeded game, for [GameMode.daily] or for replaying a specific seed
   /// (e.g. a shared challenge link later).
@@ -31,6 +46,13 @@ class GameSession {
 
   final GameMode mode;
   final Board board;
+
+  /// The Adventure level being played, if any.
+  final Level? level;
+
+  /// Board cells whose block still holds a gem.
+  final Set<int> gems = {};
+  int gemsCollected = 0;
   final PieceBag _bag;
 
   /// Always length 3. A `null` slot means that piece has already been
@@ -95,6 +117,7 @@ class GameSession {
     );
 
     tray[trayIndex] = null;
+    _collectGems(result.clearedCells);
     score += result.points;
     combo = result.comboAfter;
     movesPlayed++;
@@ -103,6 +126,25 @@ class GameSession {
     _refillIfEmpty();
     gameOver = board.isGameOver(tray);
     return result;
+  }
+
+  void _collectGems(Iterable<int> cleared) {
+    for (final i in cleared) {
+      if (gems.remove(i)) gemsCollected++;
+    }
+  }
+
+  /// Current value toward [goal].
+  int progressFor(LevelGoal goal) => switch (goal) {
+        LevelGoal.score => score,
+        LevelGoal.lines => linesClearedTotal,
+        LevelGoal.gems => gemsCollected,
+      };
+
+  /// Whether the Adventure level's goal has been reached.
+  bool get levelComplete {
+    final l = level;
+    return l != null && progressFor(l.goal) >= l.target;
   }
 
   // ------------------------------------------------------------ power-ups
@@ -115,6 +157,8 @@ class GameSession {
         combo,
         movesPlayed,
         linesClearedTotal,
+        Set<int>.of(gems),
+        gemsCollected,
       );
 
   /// Puts the game back exactly as it was at [s] (Undo).
@@ -125,6 +169,10 @@ class GameSession {
     combo = s.combo;
     movesPlayed = s.movesPlayed;
     linesClearedTotal = s.linesCleared;
+    gems
+      ..clear()
+      ..addAll(s.gems);
+    gemsCollected = s.gemsCollected;
     gameOver = board.isGameOver(tray);
   }
 
@@ -143,6 +191,7 @@ class GameSession {
         }
       }
     }
+    _collectGems(cleared.keys);
     gameOver = board.isGameOver(tray);
     return cleared;
   }
@@ -196,6 +245,7 @@ class GameSession {
         clear(x, y);
       }
     }
+    _collectGems(cleared.keys);
     shuffle();
     return cleared;
   }
@@ -209,11 +259,13 @@ class GameSession {
 /// A saved game state for [GameSession.restore].
 class SessionSnapshot {
   SessionSnapshot._(this.cells, this.tray, this.score, this.combo,
-      this.movesPlayed, this.linesCleared);
+      this.movesPlayed, this.linesCleared, this.gems, this.gemsCollected);
   final List<int> cells;
   final List<PieceShape?> tray;
   final int score;
   final int combo;
   final int movesPlayed;
   final int linesCleared;
+  final Set<int> gems;
+  final int gemsCollected;
 }
