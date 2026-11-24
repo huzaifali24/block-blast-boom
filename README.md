@@ -46,6 +46,19 @@ build, copy the example files and fill in your IDs:
 | `android/secrets.properties` | `android/secrets.example.properties` | AdMob app ID, Play Games project ID |
 | `android/key.properties` + keystore | see [Flutter docs](https://docs.flutter.dev/deployment/android#sign-the-app) | Release signing key |
 
+### Leaderboards (Google Play Games)
+
+1. In Play Console → *Play Games Services* → *Leaderboards*, create three:
+   **Classic best score**, **Daily challenge score** and **Adventure stars**
+   (all "higher is better").
+2. Put their IDs in `secrets.json` as `PGS_LB_CLASSIC`, `PGS_LB_DAILY` and
+   `PGS_LB_STARS`, and your Play Games project ID in
+   `android/secrets.properties`.
+
+Scores are sent when a game ends (Classic/Daily) and when a level is won
+(total stars). Until the IDs are set, the leaderboard buttons tell the player
+leaderboards aren't live yet.
+
 Then build:
 
 ```sh

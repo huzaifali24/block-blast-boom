@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../app/ads.dart';
 import '../app/app_state.dart';
 import '../app/music.dart';
+import '../app/play_games.dart';
 import '../app/sound.dart';
 import '../app/theme.dart';
 import '../ui/fx.dart';
@@ -433,6 +434,7 @@ class _GameScreenState extends State<GameScreen>
     _armed = null;
     final stars = level.starsFor(_session.movesPlayed);
     final coins = AppState.instance.completeLevel(level, stars);
+    PlayGames.instance.starsChanged(AppState.instance.totalStars);
     Future<void>.delayed(const Duration(milliseconds: 750), () {
       if (!mounted) return;
       setState(() {
@@ -485,6 +487,8 @@ class _GameScreenState extends State<GameScreen>
       movesPlayed: _session.movesPlayed,
       day: _day,
     );
+    PlayGames.instance.gameDone(
+        isDaily: widget.mode == GameMode.daily, score: _session.score);
     setState(() {
       _offerRevive = false;
       _outcome = outcome;
@@ -1877,6 +1881,18 @@ class _GameScreenState extends State<GameScreen>
                         ? const _ButtonLabel(Icons.map_rounded, 'Map')
                         : const _ButtonLabel(Icons.home_rounded, 'Home'),
                   ),
+                  if (!_adventure)
+                    TextButton.icon(
+                      onPressed: () => openLeaderboards(context),
+                      icon: const Icon(Icons.leaderboard_rounded,
+                          color: Color(0xFFFFD45C)),
+                      label: const Text('Leaderboard',
+                          style: TextStyle(
+                              fontFamily: kFont,
+                              color: Color(0xFFFFD45C),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800)),
+                    ),
                 ],
               ),
             ),

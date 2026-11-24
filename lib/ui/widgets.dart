@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app/play_games.dart';
 import '../app/theme.dart';
 import '../game/powerups.dart';
 
@@ -461,4 +462,31 @@ class PowerUpIcon extends StatelessWidget {
               color: Color(0x66000000), offset: Offset(0, 1.5), blurRadius: 2),
         ]),
       );
+}
+
+/// Opens Google Play Games leaderboards, or explains why it can't yet.
+Future<void> openLeaderboards(BuildContext context) async {
+  final pg = PlayGames.instance;
+  String? problem;
+  if (!PlayGames.configured) {
+    problem = 'Leaderboards go live once Block Boom is on Google Play';
+  } else if (!pg.supported) {
+    problem = 'Leaderboards need Google Play Games';
+  }
+  if (problem == null) {
+    await pg.showLeaderboards();
+    if (pg.signedIn) return;
+    problem = 'Sign in to Google Play Games to see the rankings';
+  }
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+      content: Text(problem,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontFamily: kFont, fontWeight: FontWeight.w700)),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: Colors.black.withValues(alpha: .85),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ));
 }

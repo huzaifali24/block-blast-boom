@@ -20,6 +20,11 @@ class PlayGames extends ChangeNotifier {
   // Empty = that leaderboard is skipped (builds without the file still run).
   static const leaderboardClassic = String.fromEnvironment('PGS_LB_CLASSIC');
   static const leaderboardDaily = String.fromEnvironment('PGS_LB_DAILY');
+  static const leaderboardStars = String.fromEnvironment('PGS_LB_STARS');
+
+  /// Whether this build has leaderboard IDs at all (release builds made
+  /// with `--dart-define-from-file=secrets.json`).
+  static bool get configured => leaderboardClassic.isNotEmpty;
 
   /// Game achievement id (see `achievements.dart`) -> Play Games achievement
   /// id. Filled in once the achievements exist in Play Console; until then
@@ -98,6 +103,13 @@ class PlayGames extends ChangeNotifier {
   Future<void> submitAll() async {
     final app = AppState.instance;
     await _submit(leaderboardClassic, app.bestClassic);
+    await _submit(leaderboardStars, app.totalStars);
+  }
+
+  /// Adventure: total stars earned across all levels.
+  void starsChanged(int totalStars) {
+    if (!signedIn) return;
+    _submit(leaderboardStars, totalStars);
   }
 
   /// A finished game: submits to Classic or Daily depending on [isDaily].

@@ -47,7 +47,16 @@ class HomeScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (app.dailyStreak > 0) _StreakChip(streak: app.dailyStreak),
+                  _BadgeButton(
+                    icon: Icons.leaderboard_rounded,
+                    color: const Color(0xFF3D6CF2),
+                    dot: false,
+                    onTap: () => openLeaderboards(context),
+                  ),
+                  if (app.dailyStreak > 0) ...[
+                    const SizedBox(width: 10),
+                    _StreakChip(streak: app.dailyStreak),
+                  ],
                   const Spacer(),
                   _BadgeButton(
                     icon: Icons.card_giftcard_rounded,
