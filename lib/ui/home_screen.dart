@@ -115,8 +115,11 @@ class HomeScreen extends StatelessWidget {
                   label: 'PLAY',
                   theme: t,
                   icon: Icons.play_arrow_rounded,
-                  onPressed: () =>
-                      _play(context, const GameScreen(mode: GameMode.classic)),
+                  onPressed: () => _play(
+                      context,
+                      GameScreen(
+                          mode: GameMode.classic,
+                          tutorial: !app.tutorialDone)),
                 ),
               ),
               const SizedBox(height: 14),

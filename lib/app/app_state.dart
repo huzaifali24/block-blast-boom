@@ -43,6 +43,7 @@ class AppState extends ChangeNotifier {
   static const _kMusic = 'music_on';
   static const _kPowerUpPrefix = 'powerup_';
   static const _kLevelStars = 'level_stars';
+  static const _kTutorialDone = 'tutorial_done';
   static const _kLoginDay = 'login_last_day';
   static const _kLoginStreak = 'login_streak_day';
   static const _kSpinDay = 'spin_day';
@@ -74,6 +75,7 @@ class AppState extends ChangeNotifier {
   int coins = 0;
   final Map<PowerUp, int> powerUps = {};
 
+  bool tutorialDone = false;
   int? _loginLastDay;
   int _loginStreakDay = 0;
   int? _spinDay;
@@ -111,6 +113,7 @@ class AppState extends ChangeNotifier {
     app.notifAsked = prefs.getBool(_kNotifAsked) ?? false;
 
     app.coins = prefs.getInt(_kCoins) ?? 0;
+    app.tutorialDone = prefs.getBool(_kTutorialDone) ?? false;
     app._loginLastDay = prefs.getInt(_kLoginDay);
     app._loginStreakDay = prefs.getInt(_kLoginStreak) ?? 0;
     app._spinDay = prefs.getInt(_kSpinDay);
@@ -178,6 +181,12 @@ class AppState extends ChangeNotifier {
     if (amount == 0) return;
     coins += amount;
     _prefs.setInt(_kCoins, coins);
+    notifyListeners();
+  }
+
+  void setTutorialDone() {
+    tutorialDone = true;
+    _prefs.setBool(_kTutorialDone, true);
     notifyListeners();
   }
 

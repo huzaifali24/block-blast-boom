@@ -7,6 +7,8 @@ import '../app/missions.dart';
 import '../app/play_games.dart';
 import '../app/store.dart';
 import '../app/theme.dart';
+import '../game/game_screen.dart';
+import '../game/modes.dart';
 import 'widgets.dart';
 
 class MeScreen extends StatelessWidget {
@@ -100,6 +102,15 @@ class MeScreen extends StatelessWidget {
                     label: 'Daily reminders',
                     value: app.remindersOn,
                     onChanged: app.setRemindersOn,
+                  ),
+                  Divider(height: 1, color: t.line),
+                  ListTile(
+                    title: Text('How to play', style: t.body(15, color: t.text)),
+                    trailing: Icon(Icons.school_rounded, color: t.subtext),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          const GameScreen(mode: GameMode.classic, tutorial: true),
+                    )),
                   ),
                 ],
               ),

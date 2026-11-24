@@ -19,12 +19,14 @@ import 'modes.dart';
 import 'powerups.dart';
 import 'session.dart';
 import 'skins.dart';
+import 'tutorial.dart';
 
 /// The playable screen: score HUD, board, the three-piece tray, and the
 /// game-over flow. Works for both [GameMode.classic] and [GameMode.daily] —
 /// only how the [GameSession] is seeded differs.
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key, required this.mode, this.day, this.level});
+  const GameScreen(
+      {super.key, required this.mode, this.day, this.level, this.tutorial = false});
 
   final GameMode mode;
 
@@ -34,6 +36,9 @@ class GameScreen extends StatefulWidget {
 
   /// The Adventure level to play ([GameMode.adventure] only).
   final Level? level;
+
+  /// Run the three guided tutorial moves first, then a normal game.
+  final bool tutorial;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -141,6 +146,50 @@ class _GameScreenState extends State<GameScreen>
   void initState() {
     super.initState();
     Music.instance.play(MusicTrack.game);
+    if (widget.tutorial) _loadTutorialStep(0);
+  }
+
+  // ---------------------------------------------------------------- tutorial
+
+  int _tutStep = 0;
+  bool _tutDone = false;
+  bool get _inTutorial => widget.tutorial && !_tutDone;
+  TutorialStep get _step => Tutorial.steps[_tutStep];
+
+  void _loadTutorialStep(int i) {
+    _tutStep = i;
+    final step = Tutorial.steps[i];
+    final s = GameSession.classic();
+    for (var k = 0; k < s.board.cells.length; k++) {
+      s.board.cells[k] = -1;
+    }
+    for (final k in step.filled) {
+      s.board.cells[k] = (k * 3) % 7;
+    }
+    s.tray = <PieceShape?>[null, step.piece, null];
+    _session = s;
+    _trayGen++;
+    _undo = null;
+  }
+
+  void _advanceTutorial() {
+    Future<void>.delayed(const Duration(milliseconds: 1100), () {
+      if (!mounted) return;
+      if (_tutStep + 1 < Tutorial.steps.length) {
+        setState(() => _loadTutorialStep(_tutStep + 1));
+      } else {
+        _finishTutorial(skipped: false);
+      }
+    });
+  }
+
+  void _finishTutorial({required bool skipped}) {
+    AppState.instance.setTutorialDone();
+    _tutDone = true;
+    _restart();
+    if (!skipped) {
+      setState(() => _praise = _Popup("You're ready!", 'Have fun', ++_gen));
+    }
   }
 
   /// Switches to the urgent track when the board is crowded, with
@@ -322,7 +371,10 @@ class _GameScreenState extends State<GameScreen>
     _pulse.stop();
     if (i == null) return;
     final ghost = _ghost;
-    if (!cancelled && ghost != null && _session.canPlace(i, ghost.x, ghost.y)) {
+    if (!cancelled &&
+        ghost != null &&
+        _session.canPlace(i, ghost.x, ghost.y) &&
+        (!_inTutorial || ghost == _step.target)) {
       _place(i, ghost);
       return;
     }
@@ -410,6 +462,10 @@ class _GameScreenState extends State<GameScreen>
       if (haptics) HapticFeedback.lightImpact();
     }
 
+    if (_inTutorial) {
+      _advanceTutorial();
+      return;
+    }
     if (_checkLevelWon()) return;
     if (_session.gameOver) {
       Future<void>.delayed(const Duration(milliseconds: 650), _startGameOver);
@@ -541,7 +597,7 @@ class _GameScreenState extends State<GameScreen>
     });
   }
 
-  bool get _powerUpsAllowed => widget.mode != GameMode.daily;
+  bool get _powerUpsAllowed => widget.mode != GameMode.daily && !_inTutorial;
 
   /// Adventure: when the goal is reached, celebrate and pay out (once).
   bool _checkLevelWon() {
@@ -948,6 +1004,9 @@ class _GameScreenState extends State<GameScreen>
                   ),
                 ],
               ),
+              if (_inTutorial) _tutorialCard(t),
+              if (_inTutorial && _dragIndex == null && _flyBack == null)
+                _tutorialHand(),
               if (_dragIndex != null) _draggedPiece(skin),
               if (_flyBack != null) _flyBackPiece(skin),
               if (_flashGen > 0) _flash(),
@@ -1200,6 +1259,31 @@ class _GameScreenState extends State<GameScreen>
                         ),
                       ),
                     ),
+                  if (_inTutorial && _session.tray[1] != null)
+                    for (final c in _step.piece.cells)
+                      Positioned(
+                        left: (_step.target.x + c.x) * _cell,
+                        top: (_step.target.y + c.y) * _cell,
+                        width: _cell,
+                        height: _cell,
+                        child: IgnorePointer(
+                          child: Pulse(
+                            amount: .08,
+                            period: 600,
+                            child: Container(
+                              margin: EdgeInsets.all(_cell * .06),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(_cell * .16),
+                                border: Border.all(color: Colors.white, width: 3),
+                                color: Colors.white.withValues(alpha: .18),
+                                boxShadow: const [
+                                  BoxShadow(color: Color(0xAAFFFFFF), blurRadius: 12)
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   if (_scorePop != null) _scorePopWidget(_scorePop!),
                   if (_praise != null) _praiseWidget(_praise!, grid),
                   if (_over && !_showResults)
@@ -1393,9 +1477,11 @@ class _GameScreenState extends State<GameScreen>
 
   Widget _slot(int i, BlockSkin skin) {
     final s = _session.tray[i];
-    final hidden = s == null || _dragIndex == i || _flyBack?.index == i;
+    // While the piece is being dragged or flying back it stays mounted but
+    // invisible, so its deal-in animation doesn't replay when it returns.
+    final away = _dragIndex == i || _flyBack?.index == i;
     Widget child = const SizedBox.expand();
-    if (!hidden) {
+    if (s != null) {
       final fits = _over || _session.board.canPlaceAnywhere(s);
       child = Center(
         child: TweenAnimationBuilder<double>(
@@ -1439,6 +1525,7 @@ class _GameScreenState extends State<GameScreen>
           ),
         ),
       );
+      child = Opacity(opacity: away ? 0 : 1, child: child);
     }
     return Listener(
       behavior: HitTestBehavior.opaque,
@@ -1562,7 +1649,88 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  Widget _tutorialCard(AppTheme t) {
+    final step = _step;
+    return Positioned(
+      left: 14,
+      right: 14,
+      top: 6,
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey('tut$_tutStep'),
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutBack,
+        builder: (_, k, child) => Transform.translate(
+            offset: Offset(0, -30 * (1 - k)),
+            child: Opacity(opacity: k.clamp(0, 1), child: child)),
+        child: _Panel(
+          theme: t,
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                      colors: [Color(0xFFFFE27A), Color(0xFFFFA51C)]),
+                ),
+                child: Center(
+                  child: Text('${_tutStep + 1}/${Tutorial.steps.length}',
+                      style: const TextStyle(
+                          fontFamily: kFont,
+                          color: Color(0xFF5A2E00),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(step.title, style: t.title(18, color: Colors.white)),
+                    Text(step.text, style: t.body(13, color: t.subtext)),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => _finishTutorial(skipped: true),
+                child: Text('Skip',
+                    style: t.body(14, color: t.subtext, weight: FontWeight.w800)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// An animated hand showing the drag from the tray to the target.
+  Widget _tutorialHand() {
+    final origin = _gridOrigin();
+    final slotBox = _slotKeys[1].currentContext?.findRenderObject() as RenderBox?;
+    final root = _rootBox;
+    if (origin == null || slotBox == null || root == null || _session.tray[1] == null) {
+      // Layout isn't ready on the very first frame; try again next frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return const SizedBox.shrink();
+    }
+    final piece = _step.piece;
+    final from = slotBox.localToGlobal(slotBox.size.center(Offset.zero), ancestor: root);
+    // Where a finger must be for the lifted piece to land on the target.
+    final to = origin +
+        Offset(_step.target.x * _cell + piece.width * _cell / 2,
+            _step.target.y * _cell + piece.height * _cell + _cell * .9);
+    return Positioned.fill(
+      child: IgnorePointer(child: _HandHint(key: ValueKey('hand$_tutStep'), from: from, to: to)),
+    );
+  }
+
   Widget _powerBar(AppTheme t) {
+    if (_inTutorial) return const SizedBox.shrink();
     if (!_powerUpsAllowed) {
       return Center(
         child: Text('Daily Challenge: same board for everyone, no power-ups',
@@ -2254,6 +2422,58 @@ class _PowerButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A looping "press, drag, release" hand gesture between two points.
+class _HandHint extends StatefulWidget {
+  const _HandHint({super.key, required this.from, required this.to});
+  final Offset from;
+  final Offset to;
+
+  @override
+  State<_HandHint> createState() => _HandHintState();
+}
+
+class _HandHintState extends State<_HandHint> with SingleTickerProviderStateMixin {
+  late final _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1900))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        builder: (_, __) {
+          final v = _c.value;
+          final move = Curves.easeInOut.transform(((v - .2) / .55).clamp(0, 1));
+          final p = Offset.lerp(widget.from, widget.to, move)!;
+          final pressed = v > .12 && v < .8;
+          final fade = v < .1 ? v / .1 : v > .88 ? (1 - v) / .12 : 1.0;
+          return Stack(
+            children: [
+              Positioned(
+                left: p.dx - 8,
+                top: p.dy - 4,
+                child: Opacity(
+                  opacity: fade.clamp(0, 1),
+                  child: Transform.scale(
+                    scale: pressed ? .88 : 1,
+                    child: const Icon(Icons.touch_app_rounded,
+                        size: 58,
+                        color: Colors.white,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 10)]),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
 }
 
 class _HudCoins extends StatelessWidget {
