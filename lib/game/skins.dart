@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'shapes.dart';
 
-/// A purchasable coat of paint for the board: one [Color] per [PieceColor],
-/// in enum order (amber, pink, cyan, mint, violet, coral). The engine never
-/// looks at this — it only ever deals in [PieceColor] — so adding a skin
-/// never touches game logic.
+/// A purchasable coat of paint for the blocks: one [Color] per [PieceColor],
+/// in enum order (amber, pink, cyan, mint, violet, coral, blue). The engine
+/// never looks at this — it only ever deals in [PieceColor] — so adding a
+/// skin never touches game logic.
 class BlockSkin {
   const BlockSkin({
     required this.id,
@@ -22,67 +22,73 @@ class BlockSkin {
   final int priceCoins;
 
   Color forPiece(PieceColor c) => colors[c.index];
+  Color forIndex(int i) => colors[i % colors.length];
 }
 
 class Skins {
   Skins._();
 
+  /// Bright, saturated "candy" blocks — the default look.
   static const classic = BlockSkin(
     id: 'classic',
-    name: 'Classic',
+    name: 'Candy',
     colors: [
-      Color(0xFFFF8A3D), // amber
-      Color(0xFFFF5283), // pink
-      Color(0xFF38BDF8), // cyan
-      Color(0xFF32FF00), // mint (brand green)
-      Color(0xFFA78BFA), // violet
-      Color(0xFFFF6B6B), // coral
+      Color(0xFFFFC02E), // amber / yellow
+      Color(0xFFF23F5B), // pink / red
+      Color(0xFF26C6F0), // cyan
+      Color(0xFF3FD16B), // mint / green
+      Color(0xFF9B5BF5), // violet
+      Color(0xFFFF8A26), // coral / orange
+      Color(0xFF3D6CF2), // blue
     ],
   );
 
   static const neon = BlockSkin(
     id: 'neon',
-    name: 'Neon Night',
+    name: 'Neon',
     priceCoins: 600,
     colors: [
-      Color(0xFFFFB703), // amber
-      Color(0xFFFF006E), // pink
-      Color(0xFF00F5FF), // cyan
-      Color(0xFF39FF14), // mint
-      Color(0xFFB026FF), // violet
-      Color(0xFFFF4365), // coral
+      Color(0xFFFFE600),
+      Color(0xFFFF1F7A),
+      Color(0xFF00F0FF),
+      Color(0xFF39FF14),
+      Color(0xFFB026FF),
+      Color(0xFFFF6A00),
+      Color(0xFF2E5BFF),
     ],
   );
 
   static const pastel = BlockSkin(
     id: 'pastel',
-    name: 'Soft Pastel',
+    name: 'Pastel',
     priceCoins: 600,
     colors: [
-      Color(0xFFFFC98B), // amber
-      Color(0xFFFFADC6), // pink
-      Color(0xFFA7E3F2), // cyan
-      Color(0xFFB7F0AD), // mint
-      Color(0xFFCBB8F2), // violet
-      Color(0xFFFFB3A7), // coral
+      Color(0xFFFFD98B),
+      Color(0xFFFF9DB4),
+      Color(0xFF96DDF2),
+      Color(0xFF9FE8A6),
+      Color(0xFFC6AEF5),
+      Color(0xFFFFB98A),
+      Color(0xFF9AB4FA),
     ],
   );
 
-  static const sunset = BlockSkin(
+  static const gems = BlockSkin(
     id: 'sunset',
-    name: 'Sunset',
+    name: 'Gems',
     priceCoins: 900,
     colors: [
-      Color(0xFFFFA62B), // amber
-      Color(0xFFE4572E), // pink slot
-      Color(0xFF29335C), // cyan slot
-      Color(0xFFF3A712), // mint slot
-      Color(0xFF9C3848), // violet slot
-      Color(0xFFDB6C79), // coral
+      Color(0xFFE8B10E), // topaz
+      Color(0xFFC8102E), // ruby
+      Color(0xFF0FA3B1), // aquamarine
+      Color(0xFF0B9E4F), // emerald
+      Color(0xFF7B2CBF), // amethyst
+      Color(0xFFE85D04), // amber
+      Color(0xFF1D4ED8), // sapphire
     ],
   );
 
-  static const all = [classic, neon, pastel, sunset];
+  static const all = [classic, neon, pastel, gems];
 
   static BlockSkin byId(String id) =>
       all.firstWhere((s) => s.id == id, orElse: () => classic);

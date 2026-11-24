@@ -95,10 +95,10 @@ class Reminders {
   }
 
   static const _plain = [
-    ('Today\'s board is ready 🌸', 'A fresh 8x8 grid just bloomed. Clear it!'),
+    ('Today\'s board is ready 💥', 'A fresh 8x8 grid is waiting. Blast it!'),
     ('New daily challenge', 'Everyone plays the same board today. Beat it.'),
     ('Time for a quick game?', 'Today\'s daily challenge is waiting.'),
-    ('Block Bloom', 'Your daily puzzle is ready whenever you are.'),
+    ('Block Boom', 'Your daily puzzle is ready whenever you are.'),
   ];
 
   /// What to say [dayOffset] days from now.

@@ -1,6 +1,6 @@
-# Block Bloom
+# Block Boom
 
-A calm but endless wood-block puzzle for Android, built with Flutter.
+A fast, colorful block puzzle for Android, built with Flutter.
 
 Drag pieces onto an 8x8 board to fill rows and columns — clear a line and it
 disappears, clear several at once and the combo keeps compounding. Play

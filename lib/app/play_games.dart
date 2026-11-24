@@ -11,7 +11,7 @@ import 'app_state.dart';
 /// they have Play Games); otherwise they can sign in from the Me tab. There
 /// is no cloud save yet (progress lives in local `shared_preferences` only,
 /// see `app_state.dart`) — a reasonable next step once this is a real
-/// publish, following the pattern in Arrow Bloom's `play_games.dart`.
+/// publish, using the standard games_services flow.
 class PlayGames extends ChangeNotifier {
   PlayGames._();
   static final instance = PlayGames._();

@@ -21,7 +21,7 @@ class Cell {
 /// the engine only cares about shape, never color — but every placed cell
 /// remembers its [PieceColor.index] so a theme (see `app/theme.dart`) can
 /// pick the actual paint.
-enum PieceColor { amber, pink, cyan, mint, violet, coral }
+enum PieceColor { amber, pink, cyan, mint, violet, coral, blue }
 
 /// An immutable polyomino: the cells it occupies, normalized so the
 /// bounding box starts at (0,0). Two shapes with the same cells (in any
@@ -45,6 +45,10 @@ class PieceShape {
     final minY = cells.map((c) => c.y).reduce(min);
     return [for (final c in cells) Cell(c.x - minX, c.y - minY)];
   }
+
+  /// The same cells in a different color (the bag paints each dealt piece
+  /// at random, so color never hints at which shape is coming).
+  PieceShape withColor(PieceColor c) => PieceShape(family, cells, c);
 
   /// Rotates the shape 90° clockwise about its own bounding box.
   PieceShape rotated() => PieceShape(
@@ -107,6 +111,11 @@ class Shapes {
       Cell(0, 0), Cell(1, 0), Cell(2, 0),
       Cell(0, 1), Cell(0, 2),
     ], 1.3),
+    ('rect2x3', [
+      Cell(0, 0), Cell(1, 0),
+      Cell(0, 1), Cell(1, 1),
+      Cell(0, 2), Cell(1, 2),
+    ], 1.2),
     ('square3', [
       Cell(0, 0), Cell(1, 0), Cell(2, 0),
       Cell(0, 1), Cell(1, 1), Cell(2, 1),
@@ -179,6 +188,13 @@ class PieceBag {
     return pool.last.$1; // Unreachable in practice; keeps the method total.
   }
 
-  List<PieceShape> nextTray({int count = 3}) =>
-      List.generate(count, (_) => _draw());
+  /// Deals [count] pieces, each painted a random color with no two pieces in
+  /// the same tray sharing one.
+  List<PieceShape> nextTray({int count = 3}) {
+    final colors = [...PieceColor.values]..shuffle(rng);
+    return [
+      for (var i = 0; i < count; i++)
+        _draw().withColor(colors[i % colors.length]),
+    ];
+  }
 }

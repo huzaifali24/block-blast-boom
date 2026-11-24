@@ -113,6 +113,8 @@ class Board {
 
   /// Whether every piece in [tray] is stuck (ignoring `null` slots already
   /// used up this tray): the standard end-of-game condition.
+  bool get isEmpty => cells.every((c) => c == -1);
+
   bool isGameOver(Iterable<PieceShape?> tray) =>
       tray.every((s) => s == null || !canPlaceAnywhere(s));
 
@@ -125,6 +127,9 @@ class ScoreRules {
   static const perCellPlaced = 1;
   static const perLineBase = 10;
   static const perComboStep = 10;
+
+  /// Bonus for a move that leaves the whole board empty.
+  static const allClearBonus = 300;
 }
 
 /// Result of one placement: how many points it earned and the combo streak
@@ -174,6 +179,7 @@ class PlacementResult {
     required this.clearedCellColors,
     required this.points,
     required this.comboAfter,
+    this.allClear = false,
   });
 
   final int placedCells;
@@ -187,6 +193,10 @@ class PlacementResult {
   final Map<int, int> clearedCellColors;
   final int points;
   final int comboAfter;
+
+  /// The move cleared lines and left the board completely empty
+  /// ([ScoreRules.allClearBonus] is already included in [points]).
+  final bool allClear;
 
   int get linesCleared => clearedRows.length + clearedCols.length;
   bool get cleared => linesCleared > 0;
@@ -214,13 +224,15 @@ PlacementResult applyPlacement({
     linesCleared: lines.rows.length + lines.cols.length,
     comboBefore: comboBefore,
   );
+  final allClear = hasClear && board.isEmpty;
   return PlacementResult(
     placedCells: shape.cellCount,
     clearedRows: lines.rows,
     clearedCols: lines.cols,
     clearedCells: cleared.cells,
     clearedCellColors: cleared.colors,
-    points: scored.points,
+    points: scored.points + (allClear ? ScoreRules.allClearBonus : 0),
     comboAfter: scored.comboAfter,
+    allClear: allClear,
   );
 }

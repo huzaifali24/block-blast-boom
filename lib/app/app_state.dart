@@ -47,7 +47,7 @@ class AppState extends ChangeNotifier {
 
   late SharedPreferences _prefs;
 
-  AppTheme theme = AppTheme.paper;
+  AppTheme theme = AppTheme.indigo;
   BlockSkin skin = Skins.classic;
   Set<String> _ownedThemes = {};
   Set<String> _ownedSkins = {};
@@ -72,7 +72,7 @@ class AppState extends ChangeNotifier {
     final app = instance;
     app._prefs = prefs;
 
-    app.theme = AppTheme.byName(prefs.getString(_kTheme) ?? AppTheme.paper.name);
+    app.theme = AppTheme.byName(prefs.getString(_kTheme) ?? AppTheme.indigo.name);
     app.skin = Skins.byId(prefs.getString(_kSkin) ?? Skins.classic.id);
     app._ownedThemes = (prefs.getStringList(_kOwnedThemes) ?? const []).toSet();
     app._ownedSkins = (prefs.getStringList(_kOwnedSkins) ?? const []).toSet();

@@ -128,7 +128,7 @@ class _ThemeGrid extends StatelessWidget {
             price: t.price,
             label: t.name,
             theme: theme,
-            colors: [t.background, t.accent, t.surface],
+            colors: [t.backgroundTop, t.background, t.boardCell],
             onTap: () => app.buyOrSelectTheme(t),
           ),
       ],

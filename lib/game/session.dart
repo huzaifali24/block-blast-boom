@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 import 'engine.dart';
 import 'modes.dart';
 
@@ -41,11 +43,26 @@ class GameSession {
   int linesClearedTotal = 0;
   bool gameOver = false;
 
+  /// How many fresh trays to try before accepting one where nothing fits.
+  static const _dealAttempts = 16;
+
+  /// Deals a new tray once all three slots are used. Re-deals (a bounded
+  /// number of times) until at least one piece fits the board, so a game
+  /// only ends when the player's own placements box them in, not because
+  /// the bag dealt three impossible pieces onto a board with room left.
   void _refillIfEmpty() {
-    if (tray.every((s) => s == null)) {
-      tray = _bag.nextTray();
+    if (!tray.every((s) => s == null)) return;
+    var next = _bag.nextTray();
+    for (var i = 1;
+        i < _dealAttempts && !next.any(board.canPlaceAnywhere);
+        i++) {
+      next = _bag.nextTray();
     }
+    tray = List<PieceShape?>.of(next, growable: false);
   }
+
+  @visibleForTesting
+  void refillForTest() => _refillIfEmpty();
 
   bool canPlace(int trayIndex, int ox, int oy) {
     final shape = tray[trayIndex];

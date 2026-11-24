@@ -72,4 +72,25 @@ void main() {
     expect(board.isGameOver([null, domino]), isTrue);
     expect(board.isGameOver([null, dot]), isFalse);
   });
+
+  test('a fresh tray always has at least one piece that fits when room exists', () {
+    // Leave only scattered single holes: the bag must keep re-dealing until
+    // something fits (a lone dot or a domino), rather than ending the game.
+    for (var seed = 0; seed < 40; seed++) {
+      final s = GameSession.seeded(seed);
+      final b = s.board;
+      for (var i = 0; i < b.cells.length; i++) {
+        b.cells[i] = 0;
+      }
+      b.cells[b.indexOf(3, 3)] = -1;
+      b.cells[b.indexOf(4, 3)] = -1;
+      b.cells[b.indexOf(3, 4)] = -1;
+      b.cells[b.indexOf(4, 4)] = -1;
+      // Use up the tray so a new one is dealt against this board.
+      s.tray = [null, null, null];
+      s.refillForTest();
+      expect(s.tray.any((p) => p != null && b.canPlaceAnywhere(p)), isTrue,
+          reason: 'seed $seed dealt an unplayable tray');
+    }
+  });
 }

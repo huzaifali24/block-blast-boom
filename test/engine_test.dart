@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:block_bloom/game/engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -109,5 +111,35 @@ void main() {
     // The S/Z tetrominoes repeat after 180°: exactly two distinct turns.
     expect(byFamily['tetromino_s'], hasLength(2));
     expect(byFamily['tetromino_z'], hasLength(2));
+  });
+
+  test('a clear that empties the whole board earns the all-clear bonus', () {
+    final board = Board(3);
+    final filler = PieceShape('f', const [Cell(0, 0)], PieceColor.amber);
+    board.place(filler, 0, 0, 0);
+    board.place(filler, 1, 0, 0);
+    final dot = PieceShape('dot', const [Cell(0, 0)], PieceColor.mint);
+    final result = applyPlacement(
+        board: board, shape: dot, ox: 2, oy: 0, colorIndex: 3, comboBefore: 0);
+    expect(result.allClear, isTrue);
+    expect(result.points, 1 + 10 + ScoreRules.allClearBonus);
+
+    // Clearing a line while other blocks remain is not an all-clear.
+    final board2 = Board(3);
+    board2.place(filler, 0, 0, 0);
+    board2.place(filler, 1, 0, 0);
+    board2.place(filler, 0, 2, 0);
+    final r2 = applyPlacement(
+        board: board2, shape: dot, ox: 2, oy: 0, colorIndex: 3, comboBefore: 0);
+    expect(r2.allClear, isFalse);
+    expect(r2.points, 11);
+  });
+
+  test('each dealt tray paints its three pieces in three different colors', () {
+    final bag = PieceBag(Random(42));
+    for (var i = 0; i < 50; i++) {
+      final tray = bag.nextTray();
+      expect(tray.map((s) => s.color).toSet(), hasLength(3));
+    }
   });
 }

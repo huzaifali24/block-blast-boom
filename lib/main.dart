@@ -16,7 +16,7 @@ Future<void> main() async {
   await AppState.load();
   Ads.instance.adsRemoved = AppState.instance.adsRemoved;
   await Sound.instance.init();
-  runApp(const BlockBloomApp());
+  runApp(const BlockBoomApp());
   // After the first frame, so the consent form has a screen to appear over.
   WidgetsBinding.instance.addPostFrameCallback((_) {
     Ads.instance.init();
@@ -26,8 +26,8 @@ Future<void> main() async {
   });
 }
 
-class BlockBloomApp extends StatelessWidget {
-  const BlockBloomApp({super.key});
+class BlockBoomApp extends StatelessWidget {
+  const BlockBoomApp({super.key});
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -35,7 +35,7 @@ class BlockBloomApp extends StatelessWidget {
         builder: (context, _) {
           final t = AppState.instance.theme;
           return MaterialApp(
-            title: 'Block Bloom',
+            title: 'Block Boom',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
               useMaterial3: true,

@@ -31,15 +31,18 @@ class _MainShellState extends State<MainShell> {
         final t = AppState.instance.theme;
         return Scaffold(
           backgroundColor: t.background,
-          body: SafeArea(
-            bottom: false,
-            child: IndexedStack(
-              index: _tab,
-              children: const [
-                HomeScreen(),
-                ShopScreen(),
-                MeScreen(),
-              ],
+          body: DecoratedBox(
+            decoration: BoxDecoration(gradient: t.backgroundGradient),
+            child: SafeArea(
+              bottom: false,
+              child: IndexedStack(
+                index: _tab,
+                children: const [
+                  HomeScreen(),
+                  ShopScreen(),
+                  MeScreen(),
+                ],
+              ),
             ),
           ),
           bottomNavigationBar: SafeArea(
@@ -88,7 +91,7 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? theme.accent : theme.subtext;
+    final color = selected ? theme.gold : theme.subtext;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
