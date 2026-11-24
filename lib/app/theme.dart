@@ -145,7 +145,58 @@ class AppTheme {
     price: 400,
   );
 
-  static const all = [indigo, ocean, grape, night];
+  static const sunset = AppTheme(
+    name: 'Sunset',
+    backgroundTop: Color(0xFFFF8A5B),
+    background: Color(0xFF5A1846),
+    surface: Color(0xFF7A2456),
+    line: Color(0xFF9A3466),
+    text: Colors.white,
+    subtext: Color(0xFFFFD2C2),
+    accent: Color(0xFF34C86A),
+    danger: Color(0xFFFF5C6C),
+    gold: Color(0xFFFFC93C),
+    boardFrame: Color(0xFF3D0F31),
+    boardCell: Color(0xFF5C1A47),
+    boardCellEdge: Color(0xFF4A143A),
+    price: 500,
+  );
+
+  static const forest = AppTheme(
+    name: 'Forest',
+    backgroundTop: Color(0xFF2F9E6A),
+    background: Color(0xFF0B3326),
+    surface: Color(0xFF14513B),
+    line: Color(0xFF1E6A4D),
+    text: Colors.white,
+    subtext: Color(0xFFB9EBD2),
+    accent: Color(0xFFFF9F1C),
+    danger: Color(0xFFFF5C6C),
+    gold: Color(0xFFFFC93C),
+    boardFrame: Color(0xFF08261C),
+    boardCell: Color(0xFF0F3B2C),
+    boardCellEdge: Color(0xFF0A2F23),
+    price: 500,
+  );
+
+  static const candy = AppTheme(
+    name: 'Bubblegum',
+    backgroundTop: Color(0xFFFF7EC8),
+    background: Color(0xFF6A2C9E),
+    surface: Color(0xFF8A3BB8),
+    line: Color(0xFFA34FCF),
+    text: Colors.white,
+    subtext: Color(0xFFFFD6F2),
+    accent: Color(0xFF34C86A),
+    danger: Color(0xFFFF5C6C),
+    gold: Color(0xFFFFC93C),
+    boardFrame: Color(0xFF4A1A75),
+    boardCell: Color(0xFF61268F),
+    boardCellEdge: Color(0xFF521F7D),
+    price: 600,
+  );
+
+  static const all = [indigo, ocean, grape, night, sunset, forest, candy];
 
   static AppTheme byName(String name) =>
       all.firstWhere((t) => t.name == name, orElse: () => indigo);

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state.dart';
 import '../app/store.dart';
 import '../app/theme.dart';
+import '../game/board_painter.dart';
 import '../game/skins.dart';
 import 'widgets.dart';
 
@@ -42,8 +43,7 @@ class ShopScreen extends StatelessWidget {
                   child: _CoinPackCard(
                     theme: t,
                     label: '500 coins',
-                    price: Store.instance.products[Store.coins500Id]
-                            ?.price ??
+                    price: Store.instance.products[Store.coins500Id]?.price ??
                         '\$1.99',
                     onTap: () => Store.instance.buyCoins(Store.coins500Id),
                   ),
@@ -53,8 +53,7 @@ class ShopScreen extends StatelessWidget {
                   child: _CoinPackCard(
                     theme: t,
                     label: '1,500 coins',
-                    price: Store.instance.products[Store.coins1500Id]
-                            ?.price ??
+                    price: Store.instance.products[Store.coins1500Id]?.price ??
                         '\$4.99',
                     onTap: () => Store.instance.buyCoins(Store.coins1500Id),
                   ),
@@ -83,8 +82,9 @@ class ShopScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Text(Store.instance.products[Store.removeAdsId]?.price ??
-                        '\$2.99',
+                    Text(
+                        Store.instance.products[Store.removeAdsId]?.price ??
+                            '\$2.99',
                         style: t.title(15, color: t.accent)),
                   ],
                 ),
@@ -92,8 +92,7 @@ class ShopScreen extends StatelessWidget {
             ],
             if (Store.instance.message != null) ...[
               const SizedBox(height: 12),
-              Text(Store.instance.message!,
-                  style: t.body(12, color: t.danger)),
+              Text(Store.instance.message!, style: t.body(12, color: t.danger)),
             ],
           ],
         ),
@@ -157,6 +156,7 @@ class _SkinGrid extends StatelessWidget {
             label: s.name,
             theme: theme,
             colors: s.colors.take(3).toList(),
+            blockStyle: s.style,
             onTap: () => app.buyOrSelectSkin(s),
           ),
       ],
@@ -173,6 +173,7 @@ class _SwatchCard extends StatelessWidget {
     required this.theme,
     required this.colors,
     required this.onTap,
+    this.blockStyle,
   });
 
   final bool selected;
@@ -182,6 +183,9 @@ class _SwatchCard extends StatelessWidget {
   final AppTheme theme;
   final List<Color> colors;
   final VoidCallback onTap;
+
+  /// Skins preview real blocks in their material; themes show swatches.
+  final BlockStyle? blockStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -196,22 +200,28 @@ class _SwatchCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              for (final c in colors)
-                Container(
-                  width: 24,
-                  height: 24,
-                  margin: const EdgeInsets.only(right: 4),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color.lerp(c, Colors.white, .4)!, c],
+              if (blockStyle != null)
+                CustomPaint(
+                  size: const Size(84, 28),
+                  painter: _BlocksPreview(colors, blockStyle!),
+                )
+              else
+                for (final c in colors)
+                  Container(
+                    width: 24,
+                    height: 24,
+                    margin: const EdgeInsets.only(right: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color.lerp(c, Colors.white, .4)!, c],
+                      ),
+                      border: Border.all(
+                          color: Color.lerp(c, Colors.black, .35)!, width: 1.4),
                     ),
-                    border: Border.all(
-                        color: Color.lerp(c, Colors.black, .35)!, width: 1.4),
                   ),
-                ),
               const Spacer(),
               if (selected)
                 const Icon(Icons.check_circle_rounded,
@@ -222,13 +232,15 @@ class _SwatchCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(label,
-                    style: theme.body(16, weight: FontWeight.w800, color: theme.text),
+                    style: theme.body(16,
+                        weight: FontWeight.w800, color: theme.text),
                     overflow: TextOverflow.ellipsis),
               ),
               if (selected)
                 Text('IN USE',
                     style: theme.body(11,
-                        weight: FontWeight.w800, color: const Color(0xFF3FD16B)))
+                        weight: FontWeight.w800,
+                        color: const Color(0xFF3FD16B)))
               else if (owned)
                 Text('OWNED', style: theme.body(11, weight: FontWeight.w800))
               else
@@ -282,4 +294,23 @@ class _CoinPackCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BlocksPreview extends CustomPainter {
+  _BlocksPreview(this.colors, this.style);
+  final List<Color> colors;
+  final BlockStyle style;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cell = size.height;
+    for (var i = 0; i < colors.length; i++) {
+      BlockArt.block(canvas, Rect.fromLTWH(i * cell, 0, cell, cell), colors[i],
+          as: style);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BlocksPreview old) =>
+      old.style != style || old.colors != colors;
 }

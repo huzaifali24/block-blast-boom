@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../game/board_painter.dart';
 import '../game/levels.dart';
 import '../game/modes.dart';
 import '../game/powerups.dart';
@@ -98,6 +99,7 @@ class AppState extends ChangeNotifier {
     app.theme =
         AppTheme.byName(prefs.getString(_kTheme) ?? AppTheme.indigo.name);
     app.skin = Skins.byId(prefs.getString(_kSkin) ?? Skins.classic.id);
+    BlockArt.style = app.skin.style;
     app._ownedThemes = (prefs.getStringList(_kOwnedThemes) ?? const []).toSet();
     app._ownedSkins = (prefs.getStringList(_kOwnedSkins) ?? const []).toSet();
 
@@ -166,6 +168,7 @@ class AppState extends ChangeNotifier {
       _prefs.setInt(_kCoins, coins);
     }
     skin = s;
+    BlockArt.style = s.style;
     _prefs.setString(_kSkin, s.id);
     notifyListeners();
     return true;

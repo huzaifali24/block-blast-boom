@@ -22,7 +22,11 @@ class BlockArt {
   static final _blocks = <int, ui.Picture>{};
   static final _cells = <int, ui.Picture>{};
 
-  static int _key(Color c, int px) => Object.hash(c.toARGB32(), px);
+  /// The active skin's material; set whenever the skin changes.
+  static BlockStyle style = BlockStyle.gloss;
+
+  static int _key(Color c, int px, BlockStyle st) =>
+      Object.hash(c.toARGB32(), px, st);
 
   static void _trim(Map<int, ui.Picture> m) {
     if (m.length < 400) return;
@@ -33,11 +37,18 @@ class BlockArt {
   }
 
   /// Draws a glossy 3D block filling [r] (square).
-  static void block(Canvas canvas, Rect r, Color base, {double opacity = 1}) {
+  /// [as] overrides the active [style] (e.g. shop previews).
+  static void block(Canvas canvas, Rect r, Color base,
+      {double opacity = 1, BlockStyle? as}) {
+    final st = as ?? style;
     if (opacity <= 0 || r.width < 1) return;
     final px = r.width.round().clamp(1, 512);
     _trim(_blocks);
-    final pic = _blocks[_key(base, px)] ??= _recordBlock(base, px.toDouble());
+    final pic = _blocks[_key(base, px, st)] ??= switch (st) {
+      BlockStyle.gloss => _recordBlock(base, px.toDouble()),
+      BlockStyle.neon => _recordNeon(base, px.toDouble()),
+      BlockStyle.wood => _recordWood(base, px.toDouble()),
+    };
     _replay(canvas, r, px, pic, opacity);
   }
 
@@ -180,6 +191,148 @@ class BlockArt {
     c.drawCircle(spark + Offset(s * .08, s * .01), s * .022,
         Paint()..color = Colors.white.withValues(alpha: .7));
 
+    return rec.endRecording();
+  }
+
+  /// Dark glass tile with a glowing rim in [base].
+  static ui.Picture _recordNeon(Color base, double s) {
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    final m = s * .07;
+    final r = Rect.fromLTRB(m, m, s - m, s - m);
+    final rr = RRect.fromRectAndRadius(r, Radius.circular(s * .16));
+    // Outer glow.
+    c.drawRRect(
+      rr,
+      Paint()
+        ..color = base.withValues(alpha: .55)
+        ..maskFilter = MaskFilter.blur(BlurStyle.outer, s * .09),
+    );
+    // Glass body tinted by the color.
+    c.drawRRect(
+      rr,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(const Color(0xFF0B0B1A), base, .28)!,
+            const Color(0xFF07071A),
+          ],
+        ).createShader(r),
+    );
+    // Bright rim and an inner echo line.
+    c.drawRRect(
+      rr.deflate(s * .03),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * .07
+        ..color = base,
+    );
+    c.drawRRect(
+      rr.deflate(s * .03),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * .025
+        ..color = Color.lerp(base, Colors.white, .7)!,
+    );
+    c.drawRRect(
+      rr.deflate(s * .17),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * .02
+        ..color = base.withValues(alpha: .45),
+    );
+    // Glass reflection.
+    c.drawLine(
+      Offset(r.left + s * .2, r.top + s * .18),
+      Offset(r.left + s * .42, r.top + s * .18),
+      Paint()
+        ..strokeWidth = s * .045
+        ..strokeCap = StrokeCap.round
+        ..color = Colors.white.withValues(alpha: .55),
+    );
+    return rec.endRecording();
+  }
+
+  /// Carved wooden block stained with [base].
+  static ui.Picture _recordWood(Color base, double s) {
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    final m = s * .045;
+    final outer = Rect.fromLTRB(m, m, s - m, s - m);
+    final radius = s * .12;
+    final wood = Color.lerp(base, const Color(0xFF8B5A2B), .22)!;
+    c.drawRRect(
+      RRect.fromRectAndRadius(outer.shift(Offset(0, s * .035)), Radius.circular(radius)),
+      Paint()..color = Colors.black.withValues(alpha: .35),
+    );
+    c.drawRRect(RRect.fromRectAndRadius(outer, Radius.circular(radius)),
+        Paint()..color = Color.lerp(wood, Colors.black, .5)!);
+    final body = outer.deflate(s * .025);
+    final bodyRR = RRect.fromRectAndRadius(body, Radius.circular(radius * .85));
+    c.drawRRect(
+      bodyRR,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.lerp(wood, Colors.white, .28)!,
+            wood,
+            Color.lerp(wood, Colors.black, .25)!,
+          ],
+        ).createShader(body),
+    );
+    // Grain: gently wavy darker lines across the board.
+    c.save();
+    c.clipRRect(bodyRR);
+    final grain = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * .018
+      ..color = Color.lerp(wood, Colors.black, .35)!.withValues(alpha: .55);
+    for (var i = 0; i < 6; i++) {
+      final y = body.top + body.height * (.12 + i * .16);
+      final path = Path()..moveTo(body.left, y);
+      for (var k = 1; k <= 8; k++) {
+        final x = body.left + body.width * k / 8;
+        final wobble = math.sin(k * 1.3 + i * 2.1) * s * .025;
+        path.lineTo(x, y + wobble);
+      }
+      c.drawPath(path, grain);
+    }
+    // A knot.
+    c.drawOval(
+      Rect.fromCenter(
+          center: Offset(body.left + body.width * .68, body.top + body.height * .62),
+          width: s * .16,
+          height: s * .09),
+      grain..strokeWidth = s * .02,
+    );
+    c.restore();
+    // Carved inner bevel.
+    c.drawRRect(
+      RRect.fromRectAndRadius(body.deflate(s * .1), Radius.circular(s * .06)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * .03
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: .28),
+            Colors.white.withValues(alpha: .22),
+          ],
+        ).createShader(body),
+    );
+    c.drawLine(
+      Offset(outer.left + radius, outer.top + s * .03),
+      Offset(outer.right - radius, outer.top + s * .03),
+      Paint()
+        ..color = Colors.white.withValues(alpha: .35)
+        ..strokeWidth = s * .02
+        ..strokeCap = StrokeCap.round,
+    );
     return rec.endRecording();
   }
 
