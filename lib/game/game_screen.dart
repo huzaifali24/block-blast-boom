@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../app/app_state.dart';
 import '../app/sound.dart';
 import '../app/theme.dart';
+import '../ui/fx.dart';
 import '../ui/widgets.dart';
 import 'board_painter.dart';
 import 'engine.dart';
@@ -52,7 +53,8 @@ class _ScorePop {
   final int gen;
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen>
+    with SingleTickerProviderStateMixin {
   late DateTime _day = widget.day ?? DateTime.now();
   late GameSession _session = _newSession();
   final _rng = math.Random();
@@ -60,6 +62,10 @@ class _GameScreenState extends State<GameScreen> {
   final _rootKey = GlobalKey();
   final _gridKey = GlobalKey();
   final _slotKeys = List.generate(3, (_) => GlobalKey());
+
+  /// Loops while dragging so preview lines shimmer.
+  late final _pulse = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100));
 
   // Layout, refreshed every build.
   double _cell = 32;
@@ -79,12 +85,13 @@ class _GameScreenState extends State<GameScreen> {
   int _gen = 0;
   int _trayGen = 0;
   Set<int> _popCells = const {};
-  List<ClearingCell> _clearing = const [];
-  List<Particle> _particles = const [];
+  ClearFx? _clearFx;
   _Popup? _praise;
   _ScorePop? _scorePop;
   int _shakeGen = 0;
   double _shakeAmp = 0;
+  int _flashGen = 0;
+  double _flashStrength = 0;
 
   // Game over.
   bool _over = false;
@@ -92,24 +99,29 @@ class _GameScreenState extends State<GameScreen> {
   int _overGen = 0;
   GameOutcome? _outcome;
 
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+
   GameSession _newSession() => widget.mode == GameMode.daily
       ? GameSession.seeded(DailyChallenge.seedFor(_day),
           boardSize: DailyChallenge.boardSize)
       : GameSession.classic();
 
   void _restart() {
+    _pulse.stop();
     setState(() {
       _day = widget.day ?? DateTime.now();
       _session = _newSession();
       _dragIndex = null;
       _pointer = null;
-      _ghost = null;
-      _previewRows = const [];
-      _previewCols = const [];
+      _clearGhost();
       _flyBack = null;
       _popCells = const {};
-      _clearing = const [];
-      _particles = const [];
+      _clearFx = null;
       _praise = null;
       _scorePop = null;
       _over = false;
@@ -174,6 +186,10 @@ class _GameScreenState extends State<GameScreen> {
     final lines = sim.fullLines();
     _previewRows = lines.rows;
     _previewCols = lines.cols;
+    if ((_previewRows.isNotEmpty || _previewCols.isNotEmpty) &&
+        AppState.instance.hapticsOn) {
+      HapticFeedback.selectionClick();
+    }
   }
 
   void _clearGhost() {
@@ -188,6 +204,7 @@ class _GameScreenState extends State<GameScreen> {
     if (_dragIndex != null || _over || _session.tray[i] == null) return;
     if (_flyBack?.index == i) return;
     _pointer = e.pointer;
+    _pulse.repeat();
     setState(() {
       _dragIndex = i;
       _dragGen++;
@@ -219,6 +236,7 @@ class _GameScreenState extends State<GameScreen> {
   void _release({bool cancelled = false}) {
     final i = _dragIndex;
     _pointer = null;
+    _pulse.stop();
     if (i == null) return;
     final ghost = _ghost;
     if (!cancelled && ghost != null && _session.canPlace(i, ghost.x, ghost.y)) {
@@ -270,20 +288,22 @@ class _GameScreenState extends State<GameScreen> {
       _scorePop = _ScorePop('+${result.points}', center, _gen);
 
       if (result.cleared) {
-        final fx = buildClearFx(
-          cleared: result.clearedCellColors,
+        _clearFx = buildClearFx(
+          result: result,
           boardSize: n,
           cell: _cell,
           from: center,
           skin: skin,
           rng: _rng,
         );
-        _clearing = fx.cells;
-        _particles = fx.particles;
         _praise = _praiseFor(result);
         if (result.linesCleared >= 3 || result.allClear) {
           _shakeGen++;
           _shakeAmp = _cell * (result.allClear ? .22 : .12);
+        }
+        if (result.linesCleared >= 2 || result.allClear) {
+          _flashGen++;
+          _flashStrength = result.allClear ? .55 : .12 + .06 * result.linesCleared;
         }
       }
     });
@@ -309,8 +329,10 @@ class _GameScreenState extends State<GameScreen> {
 
   _Popup? _praiseFor(PlacementResult r) {
     final combo = r.comboAfter;
-    final sub = combo >= 2 ? 'Combo $combo' : null;
-    if (r.allClear) return _Popup('All Clear!', sub ?? '+${ScoreRules.allClearBonus}', _gen);
+    final sub = combo >= 2 ? 'Combo x$combo' : null;
+    if (r.allClear) {
+      return _Popup('All Clear!', sub ?? '+${ScoreRules.allClearBonus}', _gen);
+    }
     final level = r.linesCleared + (combo - 1);
     const words = ['Good!', 'Great!', 'Excellent!', 'Amazing!', 'Unbelievable!'];
     if (level < 2) return sub == null ? null : _Popup(sub, null, _gen);
@@ -337,6 +359,7 @@ class _GameScreenState extends State<GameScreen> {
     Future<void>.delayed(const Duration(milliseconds: 1700), () {
       if (mounted && _over && _overGen == gen) {
         setState(() => _showResults = true);
+        if (outcome.isNewBest) Sound.instance.play(SoundEffect.coin);
       }
     });
   }
@@ -358,8 +381,9 @@ class _GameScreenState extends State<GameScreen> {
     final n = _session.board.size;
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(gradient: t.backgroundGradient),
+      backgroundColor: t.background,
+      body: AmbientBackground(
+        theme: t,
         child: SafeArea(
           child: Stack(
             key: _rootKey,
@@ -370,8 +394,8 @@ class _GameScreenState extends State<GameScreen> {
                   _hud(t),
                   Expanded(
                     child: LayoutBuilder(builder: (context, c) {
-                      final outer = math.min(c.maxWidth - 20, c.maxHeight * .66);
-                      final pad = outer * .025;
+                      final outer = math.min(c.maxWidth - 20, c.maxHeight * .64);
+                      final pad = outer * .03;
                       final grid = outer - pad * 2;
                       _cell = grid / n;
                       _trayCell = _cell * .5;
@@ -379,7 +403,7 @@ class _GameScreenState extends State<GameScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _board(t, skin, outer, pad, grid),
-                          _tray(skin, c.maxWidth),
+                          _tray(t, skin, c.maxWidth),
                         ],
                       );
                     }),
@@ -388,6 +412,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               if (_dragIndex != null) _draggedPiece(skin),
               if (_flyBack != null) _flyBackPiece(skin),
+              if (_flashGen > 0) _flash(),
               if (_showResults) _results(t),
             ],
           ),
@@ -403,42 +428,74 @@ class _GameScreenState extends State<GameScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.emoji_events_rounded, color: t.gold, size: 28),
-              const SizedBox(width: 6),
-              Text('$_best',
-                  style: TextStyle(
-                      fontFamily: kFont,
-                      color: t.gold,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800)),
+              _BestBadge(best: _best, theme: t),
               const Spacer(),
               if (widget.mode == GameMode.daily)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Text('DAILY',
+                Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFFB37BFF), Color(0xFF7B3FE4)]),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white.withValues(alpha: .25)),
+                  ),
+                  child: const Text('DAILY',
                       style: TextStyle(
                           fontFamily: kFont,
-                          color: t.subtext,
+                          color: Colors.white,
                           fontSize: 13,
                           letterSpacing: 1.5,
                           fontWeight: FontWeight.w800)),
                 ),
               _RoundIconButton(
-                icon: Icons.settings_rounded,
-                color: t.surface,
+                icon: Icons.pause_rounded,
+                color: Color.lerp(t.surface, Colors.white, .12)!,
                 onTap: () => _openPause(t),
               ),
             ],
           ),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: _session.score.toDouble()),
-            duration: const Duration(milliseconds: 450),
-            curve: Curves.easeOut,
-            builder: (_, v, __) => ArcadeText(
-              '${v.round()}',
-              size: 54,
-              colors: const [Colors.white, Color(0xFFD9DEFF)],
-              stroke: t.boardFrame,
+          const SizedBox(height: 2),
+          SizedBox(
+            height: 70,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                // Soft glow behind the score.
+                Container(
+                  width: 260,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(colors: [
+                      const Color(0xFF9FB0FF).withValues(alpha: .35),
+                      const Color(0xFF9FB0FF).withValues(alpha: 0),
+                    ]),
+                  ),
+                ),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: _session.score.toDouble()),
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOut,
+                  builder: (_, v, __) => ArcadeText(
+                    '${v.round()}',
+                    size: 56,
+                    colors: const [Colors.white, Color(0xFFD9DEFF)],
+                    stroke: t.boardFrame,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 30,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, a) =>
+                  ScaleTransition(scale: a, child: child),
+              child: _session.combo >= 2
+                  ? _ComboBadge(key: ValueKey(_session.combo), combo: _session.combo)
+                  : const SizedBox.shrink(),
             ),
           ),
         ],
@@ -448,111 +505,156 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _board(AppTheme t, BlockSkin skin, double outer, double pad, double grid) {
     final dragShape = _dragIndex == null ? null : _session.tray[_dragIndex!];
+    final radius = outer * .045;
     return TweenAnimationBuilder<double>(
       key: ValueKey('shake$_shakeGen'),
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 420),
       builder: (_, s, child) => Transform.translate(
-        offset: Offset(math.sin(s * math.pi * 8) * (1 - s) * _shakeAmp, 0),
+        offset: Offset(math.sin(s * math.pi * 8) * (1 - s) * _shakeAmp,
+            math.cos(s * math.pi * 6) * (1 - s) * _shakeAmp * .4),
         child: child,
       ),
+      // Outer bevelled rim: lit from above, dark underneath.
       child: Container(
         width: outer,
         height: outer,
-        padding: EdgeInsets.all(pad),
+        padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: t.boardFrame,
-          borderRadius: BorderRadius.circular(outer * .035),
-          border: Border.all(
-              color: Color.lerp(t.boardFrame, Colors.white, .1)!, width: 1.5),
+          borderRadius: BorderRadius.circular(radius + 3),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.lerp(t.boardFrame, Colors.white, .35)!,
+              Color.lerp(t.boardFrame, Colors.white, .08)!,
+              Color.lerp(t.boardFrame, Colors.black, .35)!,
+            ],
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: .35),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+              color: Colors.black.withValues(alpha: .45),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+            BoxShadow(
+              color: const Color(0xFF7C8CFF).withValues(alpha: .18),
+              blurRadius: 40,
+              spreadRadius: 2,
             ),
           ],
         ),
-        child: SizedBox(
-          key: _gridKey,
-          width: grid,
-          height: grid,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: TweenAnimationBuilder<double>(
-                  key: ValueKey('pop$_gen'),
-                  tween: Tween(begin: 0, end: 1),
-                  duration: const Duration(milliseconds: 260),
-                  builder: (_, popT, __) => TweenAnimationBuilder<double>(
-                    key: ValueKey('grey$_overGen'),
-                    tween: Tween(begin: 0, end: _over ? 1 : 0),
-                    duration: const Duration(milliseconds: 900),
-                    builder: (_, greyT, __) => CustomPaint(
-                      painter: BoardPainter(
-                        board: _session.board,
-                        skin: skin,
-                        theme: t,
-                        ghostShape: _ghost == null ? null : dragShape,
-                        ghostOrigin: _ghost,
-                        ghostColor: dragShape == null
-                            ? null
-                            : skin.forPiece(dragShape.color),
-                        previewRows: _previewRows,
-                        previewCols: _previewCols,
-                        popCells: _popCells,
-                        popT: popT,
-                        greyT: greyT,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (_clearing.isNotEmpty)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: TweenAnimationBuilder<double>(
-                      key: ValueKey('clear$_gen'),
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 800),
-                      onEnd: () => setState(() {
-                        _clearing = const [];
-                        _particles = const [];
-                      }),
-                      builder: (_, k, __) => CustomPaint(
-                        painter: ClearFxPainter(
-                          cells: _clearing,
-                          particles: _particles,
-                          cell: _cell,
-                          t: k,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              if (_scorePop != null) _scorePopWidget(_scorePop!),
-              if (_praise != null) _praiseWidget(_praise!, grid),
-              if (_over && !_showResults)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Center(
-                      child: TweenAnimationBuilder<double>(
-                        key: ValueKey('nospace$_overGen'),
-                        tween: Tween(begin: 0, end: 1),
-                        duration: const Duration(milliseconds: 900),
-                        curve: const Interval(.4, 1, curve: Curves.easeOutBack),
-                        builder: (_, k, child) => Opacity(
-                          opacity: k.clamp(0, 1),
-                          child: Transform.scale(scale: .6 + .4 * k, child: child),
-                        ),
-                        child: ArcadeText('No More Space', size: _cell * .8),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+        child: Container(
+          padding: EdgeInsets.all(pad - 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color.lerp(t.boardFrame, Colors.black, .25)!,
+                t.boardFrame,
+              ],
+            ),
           ),
+          child: SizedBox(
+            key: _gridKey,
+            width: grid,
+            height: grid,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: _pulse,
+                      builder: (_, __) => TweenAnimationBuilder<double>(
+                        key: ValueKey('pop$_gen'),
+                        tween: Tween(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 260),
+                        builder: (_, popT, __) => TweenAnimationBuilder<double>(
+                          key: ValueKey('grey$_overGen'),
+                          tween: Tween(begin: 0, end: _over ? 1 : 0),
+                          duration: const Duration(milliseconds: 900),
+                          builder: (_, greyT, __) => CustomPaint(
+                            painter: BoardPainter(
+                              board: _session.board,
+                              skin: skin,
+                              theme: t,
+                              ghostShape: _ghost == null ? null : dragShape,
+                              ghostOrigin: _ghost,
+                              ghostColor: dragShape == null
+                                  ? null
+                                  : skin.forPiece(dragShape.color),
+                              previewRows: _previewRows,
+                              previewCols: _previewCols,
+                              popCells: _popCells,
+                              popT: popT,
+                              greyT: greyT,
+                              pulse: _pulse.value,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_clearFx != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: TweenAnimationBuilder<double>(
+                        key: ValueKey('clear$_gen'),
+                        tween: Tween(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 850),
+                        onEnd: () => setState(() => _clearFx = null),
+                        builder: (_, k, __) => CustomPaint(
+                          painter: ClearFxPainter(fx: _clearFx!, cell: _cell, t: k),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_scorePop != null) _scorePopWidget(_scorePop!),
+                if (_praise != null) _praiseWidget(_praise!, grid),
+                if (_over && !_showResults)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey('nospace$_overGen'),
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 900),
+                          curve: const Interval(.4, 1, curve: Curves.easeOutBack),
+                          builder: (_, k, child) => Opacity(
+                            opacity: k.clamp(0, 1),
+                            child: Transform.scale(scale: .6 + .4 * k, child: child),
+                          ),
+                          child: ArcadeText('No More Space',
+                              size: _cell * .8,
+                              colors: const [Color(0xFFFFB3B3), Color(0xFFFF4D5E)],
+                              stroke: const Color(0xFF3D0610)),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _flash() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey('flash$_flashGen'),
+          tween: Tween(begin: 1, end: 0),
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOut,
+          builder: (_, k, __) => k <= 0
+              ? const SizedBox.shrink()
+              : ColoredBox(color: Colors.white.withValues(alpha: _flashStrength * k)),
         ),
       ),
     );
@@ -568,20 +670,22 @@ class _GameScreenState extends State<GameScreen> {
         child: TweenAnimationBuilder<double>(
           key: ValueKey('score${p.gen}'),
           tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 750),
+          duration: const Duration(milliseconds: 800),
           onEnd: () {
             if (_scorePop?.gen == p.gen) setState(() => _scorePop = null);
           },
           builder: (_, k, child) => Transform.translate(
-            offset: Offset(0, -_cell * 1.1 * Curves.easeOut.transform(k)),
+            offset: Offset(0, -_cell * 1.2 * Curves.easeOut.transform(k)),
             child: Opacity(
               opacity: k < .6 ? 1 : (1 - (k - .6) / .4),
-              child: child,
+              child: Transform.scale(
+                  scale: .7 + .3 * Curves.easeOutBack.transform((k / .3).clamp(0, 1)),
+                  child: child),
             ),
           ),
           child: Center(
             child: ArcadeText(p.text,
-                size: _cell * .55,
+                size: _cell * .58,
                 colors: const [Colors.white, Color(0xFFE3E7FF)],
                 stroke: const Color(0xFF15164C)),
           ),
@@ -594,35 +698,57 @@ class _GameScreenState extends State<GameScreen> {
     return Positioned(
       left: -grid * .1,
       right: -grid * .1,
-      top: grid * .28,
+      top: grid * .26,
       child: IgnorePointer(
         child: TweenAnimationBuilder<double>(
           key: ValueKey('praise${p.gen}'),
           tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 1250),
+          duration: const Duration(milliseconds: 1300),
           onEnd: () {
             if (_praise?.gen == p.gen) setState(() => _praise = null);
           },
           builder: (_, k, child) {
-            final inK = Curves.elasticOut.transform((k / .35).clamp(0, 1));
+            final inK = Curves.elasticOut.transform((k / .38).clamp(0, 1));
             final out = k < .75 ? 0.0 : (k - .75) / .25;
             return Transform.translate(
               offset: Offset(0, -_cell * .8 * out),
               child: Opacity(
                 opacity: 1 - out,
-                child: Transform.scale(scale: .3 + .7 * inK, child: child),
+                child: Transform.rotate(
+                  angle: (1 - inK) * -.15,
+                  child: Transform.scale(scale: .3 + .7 * inK, child: child),
+                ),
               ),
             );
           },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
             children: [
-              ArcadeText(p.text, size: _cell * (p.text.length > 10 ? .85 : 1.05)),
-              if (p.sub != null)
-                ArcadeText(p.sub!,
-                    size: _cell * .5,
-                    colors: const [Color(0xFFB8F7FF), Color(0xFF3FC3F2)],
-                    stroke: const Color(0xFF0B2350)),
+              Positioned(
+                child: Container(
+                  width: grid * 1.1,
+                  height: _cell * 3,
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(colors: [
+                      const Color(0xFFFFB321).withValues(alpha: .4),
+                      const Color(0xFFFFB321).withValues(alpha: 0),
+                    ]),
+                  ),
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ArcadeText(p.text,
+                      size: _cell * (p.text.length > 10 ? .85 : 1.08)),
+                  if (p.sub != null)
+                    ArcadeText(p.sub!,
+                        size: _cell * .52,
+                        colors: const [Color(0xFFB8F7FF), Color(0xFF3FC3F2)],
+                        stroke: const Color(0xFF0B2350)),
+                ],
+              ),
             ],
           ),
         ),
@@ -630,18 +756,32 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _tray(BlockSkin skin, double width) {
-    final slotH = _trayCell * 5 + 16;
-    return SizedBox(
+  Widget _tray(AppTheme t, BlockSkin skin, double width) {
+    final slotH = _trayCell * 5 + 20;
+    return Container(
       height: slotH,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: .1),
+            Colors.white.withValues(alpha: .03),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: .1)),
+      ),
       child: Row(
         children: [
           for (var i = 0; i < 3; i++)
-            SizedBox(
-              key: _slotKeys[i],
-              width: width / 3,
-              height: slotH,
-              child: _slot(i, skin),
+            Expanded(
+              child: SizedBox(
+                key: _slotKeys[i],
+                height: slotH,
+                child: _slot(i, skin),
+              ),
             ),
         ],
       ),
@@ -658,16 +798,28 @@ class _GameScreenState extends State<GameScreen> {
         child: TweenAnimationBuilder<double>(
           key: ValueKey('deal$_trayGen-$i'),
           tween: Tween(begin: 0, end: 1),
-          duration: Duration(milliseconds: 380 + i * 90),
+          duration: Duration(milliseconds: 420 + i * 90),
           curve: Interval(i * .18, 1, curve: Curves.easeOutBack),
-          builder: (_, k, child) => Transform.scale(scale: k, child: child),
-          child: CustomPaint(
-            size: Size(s.width * _trayCell, s.height * _trayCell),
-            painter: PiecePainter(
-              shape: s,
-              color: skin.forPiece(s.color),
-              cell: _trayCell,
-              opacity: fits ? 1 : .35,
+          builder: (_, k, child) => Transform.translate(
+            offset: Offset((1 - k) * 60, 0),
+            child: Transform.scale(scale: k, child: child),
+          ),
+          child: ColorFiltered(
+            colorFilter: fits
+                ? const ColorFilter.mode(Colors.transparent, BlendMode.dst)
+                : const ColorFilter.matrix(<double>[
+                    .33, .33, .33, 0, 0, //
+                    .33, .33, .33, 0, 0, //
+                    .33, .33, .33, 0, 0, //
+                    0, 0, 0, .45, 0,
+                  ]),
+            child: CustomPaint(
+              size: Size(s.width * _trayCell, s.height * _trayCell),
+              painter: PiecePainter(
+                shape: s,
+                color: skin.forPiece(s.color),
+                cell: _trayCell,
+              ),
             ),
           ),
         ),
@@ -689,11 +841,11 @@ class _GameScreenState extends State<GameScreen> {
     return TweenAnimationBuilder<double>(
       key: ValueKey('lift$_dragGen'),
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 130),
-      curve: Curves.easeOut,
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOutBack,
       builder: (_, k, __) {
         final cell = lerpDouble(_trayCell, _cell, k)!;
-        final tl = _pieceTopLeft(s, k, cell);
+        final tl = _pieceTopLeft(s, k.clamp(0, 1), cell);
         return Positioned(
           left: tl.dx,
           top: tl.dy,
@@ -701,7 +853,11 @@ class _GameScreenState extends State<GameScreen> {
             child: CustomPaint(
               size: Size(s.width * cell, s.height * cell),
               painter: PiecePainter(
-                  shape: s, color: skin.forPiece(s.color), cell: cell),
+                shape: s,
+                color: skin.forPiece(s.color),
+                cell: cell,
+                lifted: k.clamp(0, 1),
+              ),
             ),
           ),
         );
@@ -716,7 +872,7 @@ class _GameScreenState extends State<GameScreen> {
     return TweenAnimationBuilder<double>(
       key: ValueKey('fly${f.gen}'),
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 190),
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
       onEnd: () {
         if (_flyBack?.gen == f.gen) setState(() => _flyBack = null);
@@ -732,7 +888,10 @@ class _GameScreenState extends State<GameScreen> {
             child: CustomPaint(
               size: Size(w, h),
               painter: PiecePainter(
-                  shape: s, color: skin.forPiece(s.color), cell: cell),
+                  shape: s,
+                  color: skin.forPiece(s.color),
+                  cell: cell,
+                  lifted: 1 - k),
             ),
           ),
         );
@@ -742,12 +901,13 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _results(AppTheme t) {
     final o = _outcome;
+    final newBest = o?.isNewBest ?? false;
     return Positioned.fill(
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 420),
+        duration: const Duration(milliseconds: 450),
         builder: (_, k, child) => ColoredBox(
-          color: Colors.black.withValues(alpha: .62 * k),
+          color: Colors.black.withValues(alpha: .7 * k),
           child: Opacity(
             opacity: k,
             child: Transform.scale(
@@ -756,71 +916,118 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ),
         ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (o?.isNewBest ?? false)
-                const ArcadeText('New Best!', size: 44)
-              else
-                Text('SCORE',
-                    style: TextStyle(
-                        fontFamily: kFont,
-                        color: t.subtext,
-                        fontSize: 20,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w800)),
-              const SizedBox(height: 6),
-              ArcadeText('${_session.score}',
-                  size: 72,
-                  colors: const [Colors.white, Color(0xFFD9DEFF)],
-                  stroke: t.boardFrame),
-              const SizedBox(height: 10),
-              Row(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              top: 20,
+              child: LightRays(
+                size: 520,
+                color: newBest ? const Color(0xFFFFD66B) : const Color(0xFF8FA2FF),
+              ),
+            ),
+            if (newBest) const Positioned.fill(child: Confetti()),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.emoji_events_rounded, color: t.gold, size: 24),
-                  const SizedBox(width: 6),
-                  Text('Best  $_best',
-                      style: TextStyle(
-                          fontFamily: kFont,
-                          color: t.gold,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800)),
+                  if (newBest) ...[
+                    const Icon(Icons.workspace_premium_rounded,
+                        color: Color(0xFFFFD34D), size: 64,
+                        shadows: [Shadow(color: Color(0xAAFFB321), blurRadius: 24)]),
+                    const ArcadeText('New Best!', size: 46),
+                  ] else
+                    const ArcadeText('Game Over',
+                        size: 40,
+                        colors: [Colors.white, Color(0xFFCFD6FF)],
+                        stroke: Color(0xFF14154A)),
+                  const SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color.lerp(t.surface, Colors.white, .14)!,
+                          t.surface,
+                        ],
+                      ),
+                      border: Border.all(color: Colors.white.withValues(alpha: .18), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .4),
+                          blurRadius: 30,
+                          offset: const Offset(0, 14),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Text('SCORE',
+                            style: TextStyle(
+                                fontFamily: kFont,
+                                color: t.subtext,
+                                fontSize: 15,
+                                letterSpacing: 2.5,
+                                fontWeight: FontWeight.w800)),
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: _session.score.toDouble()),
+                          duration: const Duration(milliseconds: 1100),
+                          curve: Curves.easeOutCubic,
+                          builder: (_, v, __) => ArcadeText('${v.round()}',
+                              size: 68,
+                              colors: const [Colors.white, Color(0xFFD9DEFF)],
+                              stroke: t.boardFrame),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _StatChip(
+                                icon: const Icon(Icons.emoji_events_rounded,
+                                    color: Color(0xFFFFC93C), size: 24),
+                                label: 'BEST',
+                                value: '$_best',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _StatChip(
+                                icon: const CoinIcon(size: 22),
+                                label: 'COINS',
+                                value: '+${o?.coinsEarned ?? 0}',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Pulse(
+                    child: ChunkyButton(
+                      color: t.accent,
+                      width: 260,
+                      height: 60,
+                      onPressed: _restart,
+                      child: const _ButtonLabel(Icons.replay_rounded, 'Play Again'),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  ChunkyButton(
+                    color: const Color(0xFF5865F2),
+                    width: 260,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    child: const _ButtonLabel(Icons.home_rounded, 'Home'),
+                  ),
                 ],
               ),
-              if (o != null && o.coinsEarned > 0) ...[
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.monetization_on_rounded, color: t.gold, size: 22),
-                    const SizedBox(width: 6),
-                    Text('+${o.coinsEarned}',
-                        style: TextStyle(
-                            fontFamily: kFont,
-                            color: t.gold,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800)),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 32),
-              ChunkyButton(
-                color: t.accent,
-                width: 250,
-                onPressed: _restart,
-                child: const _ButtonLabel(Icons.replay_rounded, 'Play Again'),
-              ),
-              const SizedBox(height: 14),
-              ChunkyButton(
-                color: const Color(0xFF5865F2),
-                width: 250,
-                onPressed: () => Navigator.of(context).maybePop(),
-                child: const _ButtonLabel(Icons.home_rounded, 'Home'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -830,12 +1037,27 @@ class _GameScreenState extends State<GameScreen> {
     Sound.instance.play(SoundEffect.tap);
     showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: .6),
+      barrierColor: Colors.black.withValues(alpha: .65),
       builder: (ctx) => Dialog(
-        backgroundColor: t.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-        child: Padding(
+        backgroundColor: Colors.transparent,
+        child: Container(
           padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color.lerp(t.surface, Colors.white, .14)!, t.surface],
+            ),
+            border: Border.all(color: Colors.white.withValues(alpha: .18), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .5),
+                blurRadius: 30,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
           child: ListenableBuilder(
             listenable: AppState.instance,
             builder: (ctx, _) {
@@ -843,7 +1065,7 @@ class _GameScreenState extends State<GameScreen> {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const ArcadeText('Paused', size: 36),
+                  const ArcadeText('Paused', size: 38),
                   const SizedBox(height: 18),
                   _ToggleRow(
                     icon: Icons.volume_up_rounded,
@@ -893,6 +1115,127 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
+class _BestBadge extends StatelessWidget {
+  const _BestBadge({required this.best, required this.theme});
+  final int best;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(4, 4, 14, 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: .3),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: .12)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  center: Alignment(-.3, -.4),
+                  colors: [Color(0xFFFFF1A8), Color(0xFFFFB21E), Color(0xFFC77A0C)],
+                ),
+                boxShadow: [BoxShadow(color: Color(0x88FFB321), blurRadius: 12)],
+              ),
+              child: const Icon(Icons.emoji_events_rounded,
+                  color: Color(0xFF8A4E00), size: 20),
+            ),
+            const SizedBox(width: 8),
+            Text('$best',
+                style: const TextStyle(
+                    fontFamily: kFont,
+                    color: Color(0xFFFFD45C),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800)),
+          ],
+        ),
+      );
+}
+
+class _ComboBadge extends StatelessWidget {
+  const _ComboBadge({super.key, required this.combo});
+  final int combo;
+
+  @override
+  Widget build(BuildContext context) => Pulse(
+        amount: .07,
+        period: 600,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            gradient: const LinearGradient(
+                colors: [Color(0xFFFFB02E), Color(0xFFFF4D3A)]),
+            border: Border.all(color: Colors.white.withValues(alpha: .35)),
+            boxShadow: const [BoxShadow(color: Color(0x88FF6A2E), blurRadius: 14)],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.local_fire_department_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 4),
+              Text('COMBO x$combo',
+                  style: const TextStyle(
+                      fontFamily: kFont,
+                      color: Colors.white,
+                      fontSize: 14,
+                      letterSpacing: .8,
+                      fontWeight: FontWeight.w800)),
+            ],
+          ),
+        ),
+      );
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.icon, required this.label, required this.value});
+  final Widget icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: .25),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            icon,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(
+                          fontFamily: kFont,
+                          color: Color(0xFFB7BBF0),
+                          fontSize: 11,
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w800)),
+                  Text(value,
+                      style: const TextStyle(
+                          fontFamily: kFont,
+                          color: Colors.white,
+                          fontSize: 18,
+                          height: 1.1,
+                          fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
 class _ButtonLabel extends StatelessWidget {
   const _ButtonLabel(this.icon, this.label);
   final IconData icon;
@@ -902,14 +1245,16 @@ class _ButtonLabel extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white, size: 26),
+          Icon(icon, color: Colors.white, size: 26,
+              shadows: const [Shadow(color: Color(0x55000000), offset: Offset(0, 1.5))]),
           const SizedBox(width: 8),
           Text(label,
               style: const TextStyle(
                   fontFamily: kFont,
                   color: Colors.white,
                   fontSize: 19,
-                  fontWeight: FontWeight.w800)),
+                  fontWeight: FontWeight.w800,
+                  shadows: [Shadow(color: Color(0x55000000), offset: Offset(0, 1.5))])),
         ],
       );
 }
@@ -928,11 +1273,11 @@ class _RoundIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChunkyButton(
         color: color,
-        width: 46,
-        height: 42,
-        radius: 14,
+        width: 48,
+        height: 44,
+        radius: 15,
         onPressed: onTap,
-        child: Icon(icon, color: Colors.white, size: 26),
+        child: Icon(icon, color: Colors.white, size: 28),
       );
 }
 

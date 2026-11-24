@@ -24,21 +24,18 @@ class ShopScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Shop', style: t.title(26, weight: FontWeight.w800)),
+                const ScreenTitle('Shop'),
                 CoinPill(coins: app.coins, theme: t),
               ],
             ),
             const SizedBox(height: 24),
-            Text('Board themes', style: t.title(16)),
-            const SizedBox(height: 10),
+            SectionLabel('Board themes', theme: t),
             _ThemeGrid(theme: t, app: app),
             const SizedBox(height: 24),
-            Text('Block skins', style: t.title(16)),
-            const SizedBox(height: 10),
+            SectionLabel('Block skins', theme: t),
             _SkinGrid(theme: t, app: app),
             const SizedBox(height: 24),
-            Text('Coins', style: t.title(16)),
-            const SizedBox(height: 10),
+            SectionLabel('Coins', theme: t),
             Row(
               children: [
                 Expanded(
@@ -66,8 +63,7 @@ class ShopScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             if (!app.adsRemoved) ...[
-              Text('Support the game', style: t.title(16)),
-              const SizedBox(height: 10),
+              SectionLabel('Support the game', theme: t),
               SectionCard(
                 theme: t,
                 onTap: Store.instance.busy
@@ -119,7 +115,8 @@ class _ThemeGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 2.1,
+      childAspectRatio: 1.55,
+      padding: EdgeInsets.zero,
       children: [
         for (final t in AppTheme.all)
           _SwatchCard(
@@ -149,7 +146,8 @@ class _SkinGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 2.1,
+      childAspectRatio: 1.55,
+      padding: EdgeInsets.zero,
       children: [
         for (final s in Skins.all)
           _SwatchCard(
@@ -190,38 +188,65 @@ class _SwatchCard extends StatelessWidget {
     return SectionCard(
       theme: theme,
       onTap: onTap,
+      glow: selected ? const Color(0xFFFFC93C) : null,
       padding: const EdgeInsets.all(12),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
               for (final c in colors)
                 Container(
-                  width: 14,
-                  height: 14,
-                  margin: const EdgeInsets.only(right: 3),
-                  decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+                  width: 24,
+                  height: 24,
+                  margin: const EdgeInsets.only(right: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color.lerp(c, Colors.white, .4)!, c],
+                    ),
+                    border: Border.all(
+                        color: Color.lerp(c, Colors.black, .35)!, width: 1.4),
+                  ),
+                ),
+              const Spacer(),
+              if (selected)
+                const Icon(Icons.check_circle_rounded,
+                    color: Color(0xFF3FD16B), size: 24),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(label,
+                    style: theme.body(16, weight: FontWeight.w800, color: theme.text),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              if (selected)
+                Text('IN USE',
+                    style: theme.body(11,
+                        weight: FontWeight.w800, color: const Color(0xFF3FD16B)))
+              else if (owned)
+                Text('OWNED', style: theme.body(11, weight: FontWeight.w800))
+              else
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CoinIcon(size: 18),
+                    const SizedBox(width: 4),
+                    Text('$price',
+                        style: TextStyle(
+                            fontFamily: kFont,
+                            color: theme.gold,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800)),
+                  ],
                 ),
             ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(label,
-                style: theme.body(13, weight: FontWeight.w700, color: theme.text),
-                overflow: TextOverflow.ellipsis),
-          ),
-          if (selected)
-            Icon(Icons.check_circle_rounded, color: theme.accent, size: 18)
-          else if (!owned)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.monetization_on, color: theme.gold, size: 14),
-                const SizedBox(width: 2),
-                Text('$price',
-                    style: TextStyle(color: theme.gold, fontSize: 12)),
-              ],
-            ),
         ],
       ),
     );
@@ -248,7 +273,7 @@ class _CoinPackCard extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          Icon(Icons.monetization_on, color: theme.gold, size: 28),
+          const CoinIcon(size: 34),
           const SizedBox(height: 8),
           Text(label, style: theme.title(14)),
           const SizedBox(height: 4),

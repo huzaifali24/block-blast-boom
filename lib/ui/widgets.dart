@@ -97,8 +97,15 @@ class _ChunkyButtonState extends State<ChunkyButton> {
               height: widget.height,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Color.lerp(base, Colors.black, .35),
+                  color: Color.lerp(base, Colors.black, .38),
                   borderRadius: BorderRadius.circular(widget.radius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: base.withValues(alpha: .35),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -111,13 +118,45 @@ class _ChunkyButtonState extends State<ChunkyButton> {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(widget.radius),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: .25), width: 1),
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color.lerp(base, Colors.white, .18)!, base],
+                    colors: [
+                      Color.lerp(base, Colors.white, .28)!,
+                      base,
+                      Color.lerp(base, Colors.black, .08)!,
+                    ],
+                    stops: const [0, .55, 1],
                   ),
                 ),
-                child: Center(child: widget.child),
+                child: Stack(
+                  children: [
+                    // Glass highlight across the top half.
+                    Positioned(
+                      left: 6,
+                      right: 6,
+                      top: 3,
+                      height: widget.height * .42,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius:
+                              BorderRadius.circular(widget.radius * .8),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.white.withValues(alpha: .38),
+                              Colors.white.withValues(alpha: .04),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Center(child: widget.child),
+                  ],
+                ),
               ),
             ),
           ],
@@ -188,7 +227,7 @@ class ArcadeText extends StatelessWidget {
   }
 }
 
-/// A rounded card used as the base for most home/shop/me tiles.
+/// A frosted-glass card used as the base for most home/shop/me tiles.
 class SectionCard extends StatelessWidget {
   const SectionCard({
     super.key,
@@ -196,6 +235,7 @@ class SectionCard extends StatelessWidget {
     required this.child,
     this.onTap,
     this.padding = const EdgeInsets.all(16),
+    this.glow,
   });
 
   final AppTheme theme;
@@ -203,14 +243,35 @@ class SectionCard extends StatelessWidget {
   final VoidCallback? onTap;
   final EdgeInsets padding;
 
+  /// Optional colored rim (e.g. the selected item in a grid).
+  final Color? glow;
+
   @override
   Widget build(BuildContext context) {
     final card = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.line),
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(theme.surface, Colors.white, .1)!.withValues(alpha: .92),
+            theme.surface.withValues(alpha: .82),
+          ],
+        ),
+        border: Border.all(
+          color: glow ?? Colors.white.withValues(alpha: .12),
+          width: glow == null ? 1 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (glow ?? Colors.black)
+                .withValues(alpha: glow == null ? .25 : .45),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: child,
     );
@@ -218,7 +279,7 @@ class SectionCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: card,
       ),
@@ -226,7 +287,43 @@ class SectionCard extends StatelessWidget {
   }
 }
 
-/// The little rounded coin-count chip shown in the home/shop app bars.
+/// A gold 3D coin.
+class CoinIcon extends StatelessWidget {
+  const CoinIcon({super.key, this.size = 22});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const RadialGradient(
+            center: Alignment(-.35, -.4),
+            colors: [Color(0xFFFFF4B0), Color(0xFFFFC53A), Color(0xFFC9861A)],
+            stops: [0, .55, 1],
+          ),
+          border: Border.all(color: const Color(0xFF9A5F0B), width: size * .07),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFFB524).withValues(alpha: .5),
+              blurRadius: size * .4,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text('\$',
+              style: TextStyle(
+                  fontFamily: kFont,
+                  fontSize: size * .55,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF9A5F0B))),
+        ),
+      );
+}
+
+/// The coin-count chip shown in the home/shop app bars.
 class CoinPill extends StatelessWidget {
   const CoinPill({super.key, required this.coins, required this.theme});
 
@@ -236,22 +333,58 @@ class CoinPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(5, 5, 16, 5),
       decoration: BoxDecoration(
-        color: theme.gold.withValues(alpha: .15),
+        color: Colors.black.withValues(alpha: .3),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: .12)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.monetization_on, color: theme.gold, size: 18),
-          const SizedBox(width: 6),
+          const CoinIcon(size: 26),
+          const SizedBox(width: 8),
           Text('$coins',
-              style: TextStyle(color: theme.gold, fontWeight: FontWeight.w700)),
+              style: const TextStyle(
+                  fontFamily: kFont,
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800)),
         ],
       ),
     );
   }
+}
+
+/// Big outlined screen heading ("Shop", "Profile").
+class ScreenTitle extends StatelessWidget {
+  const ScreenTitle(this.text, {super.key});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => ArcadeText(text,
+      size: 36,
+      colors: const [Colors.white, Color(0xFFCFD6FF)],
+      stroke: const Color(0xFF14154A));
+}
+
+/// Small caps section label.
+class SectionLabel extends StatelessWidget {
+  const SectionLabel(this.text, {super.key, required this.theme});
+  final String text;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 10),
+        child: Text(text.toUpperCase(),
+            style: TextStyle(
+                fontFamily: kFont,
+                color: theme.subtext,
+                fontSize: 13,
+                letterSpacing: 1.6,
+                fontWeight: FontWeight.w800)),
+      );
 }
 
 /// A thin horizontal progress bar (missions, achievements).

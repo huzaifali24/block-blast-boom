@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../app/app_state.dart';
@@ -5,10 +7,26 @@ import '../app/theme.dart';
 import '../game/board_painter.dart';
 import '../game/game_screen.dart';
 import '../game/modes.dart';
+import 'fx.dart';
 import 'widgets.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  void _play(BuildContext context, Widget screen) {
+    Navigator.of(context).push(PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 380),
+      pageBuilder: (_, __, ___) => screen,
+      transitionsBuilder: (_, a, __, child) => FadeTransition(
+        opacity: a,
+        child: ScaleTransition(
+          scale: Tween(begin: 1.08, end: 1.0)
+              .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+      ),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,45 +42,54 @@ class HomeScreen extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: c.maxHeight),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+                padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: CoinPill(coins: app.coins, theme: t),
-                    ),
-                    const SizedBox(height: 24),
-                    const _LogoBlocks(),
-                    const SizedBox(height: 18),
-                    const ArcadeText('BLOCK', size: 54),
-                    const ArcadeText('BOOM',
-                        size: 64,
-                        colors: [Color(0xFFFFB0C0), Color(0xFFF23F5B)],
-                        stroke: Color(0xFF3D0614)),
-                    const SizedBox(height: 22),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.emoji_events_rounded, color: t.gold, size: 28),
-                        const SizedBox(width: 8),
-                        Text('${app.bestClassic}',
-                            style: TextStyle(
-                                fontFamily: kFont,
-                                color: t.gold,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800)),
+                        if (app.dailyStreak > 0)
+                          _StreakChip(streak: app.dailyStreak),
+                        const Spacer(),
+                        CoinPill(coins: app.coins, theme: t),
                       ],
                     ),
-                    const SizedBox(height: 36),
-                    PrimaryButton(
-                      label: 'PLAY',
-                      theme: t,
-                      icon: Icons.play_arrow_rounded,
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const GameScreen(mode: GameMode.classic),
-                        ),
+                    const SizedBox(height: 12),
+                    Bob(
+                      distance: 8,
+                      child: Column(
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              const LightRays(size: 300, color: Color(0xFF9FB0FF)),
+                              _LogoBlocks(colors: app.skin.colors),
+                            ],
+                          ),
+                          Transform.translate(
+                            offset: const Offset(0, -40),
+                            child: const Column(
+                              children: [
+                                ArcadeText('BLOCK', size: 58),
+                                ArcadeText('BOOM',
+                                    size: 72,
+                                    colors: [Color(0xFFFFB0C0), Color(0xFFF23F5B)],
+                                    stroke: Color(0xFF3D0614)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _BestPlaque(best: app.bestClassic, theme: t),
+                    const SizedBox(height: 26),
+                    Pulse(
+                      child: PrimaryButton(
+                        label: 'PLAY',
+                        theme: t,
+                        icon: Icons.play_arrow_rounded,
+                        onPressed: () => _play(
+                            context, const GameScreen(mode: GameMode.classic)),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -72,20 +99,10 @@ class HomeScreen extends StatelessWidget {
                           : 'DAILY CHALLENGE',
                       theme: t,
                       color: const Color(0xFF9B5BF5),
-                      icon: Icons.calendar_today_rounded,
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              GameScreen(mode: GameMode.daily, day: today),
-                        ),
-                      ),
+                      icon: Icons.calendar_month_rounded,
+                      onPressed: () => _play(
+                          context, GameScreen(mode: GameMode.daily, day: today)),
                     ),
-                    if (app.dailyStreak > 0) ...[
-                      const SizedBox(height: 12),
-                      Text('🔥 ${app.dailyStreak}-day streak',
-                          style: t.body(15,
-                              color: t.gold, weight: FontWeight.w700)),
-                    ],
                   ],
                 ),
               ),
@@ -97,36 +114,127 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// A little cluster of blocks used as the title art.
-class _LogoBlocks extends StatelessWidget {
-  const _LogoBlocks();
+class _BestPlaque extends StatelessWidget {
+  const _BestPlaque({required this.best, required this.theme});
+  final int best;
+  final AppTheme theme;
 
   @override
-  Widget build(BuildContext context) {
-    final skin = AppState.instance.skin;
-    return CustomPaint(
-      size: const Size(176, 88),
-      painter: _LogoPainter(skin.colors),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(8, 8, 22, 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: .3),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFFFC93C).withValues(alpha: .4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  center: Alignment(-.3, -.4),
+                  colors: [Color(0xFFFFF1A8), Color(0xFFFFB21E), Color(0xFFC77A0C)],
+                ),
+                boxShadow: [BoxShadow(color: Color(0x88FFB321), blurRadius: 14)],
+              ),
+              child: const Icon(Icons.emoji_events_rounded,
+                  color: Color(0xFF8A4E00), size: 24),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('BEST SCORE',
+                    style: TextStyle(
+                        fontFamily: kFont,
+                        color: theme.subtext,
+                        fontSize: 11,
+                        letterSpacing: 1.4,
+                        fontWeight: FontWeight.w800)),
+                Text('$best',
+                    style: const TextStyle(
+                        fontFamily: kFont,
+                        color: Color(0xFFFFD45C),
+                        fontSize: 22,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800)),
+              ],
+            ),
+          ],
+        ),
+      );
+}
+
+class _StreakChip extends StatelessWidget {
+  const _StreakChip({required this.streak});
+  final int streak;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(8, 6, 14, 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          gradient: const LinearGradient(
+              colors: [Color(0xFFFFB02E), Color(0xFFFF4D3A)]),
+          border: Border.all(color: Colors.white.withValues(alpha: .3)),
+          boxShadow: const [BoxShadow(color: Color(0x66FF6A2E), blurRadius: 12)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.local_fire_department_rounded,
+                color: Colors.white, size: 22),
+            const SizedBox(width: 4),
+            Text('$streak',
+                style: const TextStyle(
+                    fontFamily: kFont,
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800)),
+          ],
+        ),
+      );
+}
+
+/// The title art: a little tumbling stack of glossy blocks.
+class _LogoBlocks extends StatelessWidget {
+  const _LogoBlocks({required this.colors});
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+        size: const Size(220, 150),
+        painter: _LogoPainter(colors),
+      );
 }
 
 class _LogoPainter extends CustomPainter {
   _LogoPainter(this.colors);
   final List<Color> colors;
 
-  // (x, y, color index) on a 4x2 grid.
+  // (x, y, color index, tilt) on a loose 4x3 grid.
   static const _cells = [
-    (0, 1, 3), (1, 1, 3), (1, 0, 3),
-    (2, 0, 1), (2, 1, 0), (3, 1, 2), (3, 0, 6),
+    (0.0, 2.0, 3, -.08), (1.0, 2.0, 3, 0.0), (1.0, 1.0, 3, 0.0),
+    (2.0, 2.0, 0, 0.0), (2.0, 1.0, 1, .05), (3.0, 2.0, 2, .04),
+    (3.0, 1.0, 6, 0.0), (2.6, -.1, 5, .35), (.2, .9, 4, -.3),
   ];
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cell = size.height / 2;
-    for (final (x, y, c) in _cells) {
-      paintBlock(canvas, Rect.fromLTWH(x * cell, y * cell, cell, cell),
+    final cell = size.height / 3.1;
+    final ox = (size.width - cell * 4) / 2;
+    for (final (x, y, c, tilt) in _cells) {
+      final r = Rect.fromLTWH(ox + x * cell, y * cell + cell * .1, cell, cell);
+      canvas.save();
+      canvas.translate(r.center.dx, r.center.dy);
+      canvas.rotate(tilt * math.pi / 2);
+      paintBlock(canvas, Rect.fromCenter(center: Offset.zero, width: cell, height: cell),
           colors[c % colors.length]);
+      canvas.restore();
     }
   }
 

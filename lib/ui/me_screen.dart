@@ -25,14 +25,13 @@ class MeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Me', style: t.title(26, weight: FontWeight.w800)),
+            const ScreenTitle('Profile'),
             const SizedBox(height: 20),
 
             _PlayGamesCard(theme: t),
             const SizedBox(height: 16),
 
-            Text('Stats', style: t.title(16)),
-            const SizedBox(height: 10),
+            SectionLabel('Stats', theme: t),
             SectionCard(
               theme: t,
               child: Row(
@@ -51,8 +50,7 @@ class MeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            Text('Daily missions', style: t.title(16)),
-            const SizedBox(height: 10),
+            SectionLabel('Daily missions', theme: t),
             for (final m in Missions.instance.today)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -60,8 +58,7 @@ class MeScreen extends StatelessWidget {
               ),
             const SizedBox(height: 14),
 
-            Text('Achievements', style: t.title(16)),
-            const SizedBox(height: 10),
+            SectionLabel('Achievements', theme: t),
             for (final a in AchievementTracker.all)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -71,8 +68,7 @@ class MeScreen extends StatelessWidget {
               ),
             const SizedBox(height: 14),
 
-            Text('Settings', style: t.title(16)),
-            const SizedBox(height: 10),
+            SectionLabel('Settings', theme: t),
             SectionCard(
               theme: t,
               padding: EdgeInsets.zero,
