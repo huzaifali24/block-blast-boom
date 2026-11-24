@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../app/ads.dart';
 import '../app/app_state.dart';
+import '../app/haptics.dart';
 import '../app/music.dart';
 import '../app/play_games.dart';
 import '../app/sound.dart';
@@ -344,7 +345,7 @@ class _GameScreenState extends State<GameScreen>
       _updateGhost();
     });
     Sound.instance.play(SoundEffect.pick);
-    if (AppState.instance.hapticsOn) HapticFeedback.selectionClick();
+    Haptics.pick();
   }
 
   void _onMove(PointerMoveEvent e) {
@@ -448,18 +449,19 @@ class _GameScreenState extends State<GameScreen>
 
     _rewardMove(result, center);
 
-    final haptics = AppState.instance.hapticsOn;
     if (result.cleared) {
-      final big = result.linesCleared >= 2 || result.comboAfter >= 2;
-      Sound.instance.play(big ? SoundEffect.combo : SoundEffect.clear);
-      if (haptics) {
-        result.linesCleared >= 3
-            ? HapticFeedback.heavyImpact()
-            : HapticFeedback.mediumImpact();
+      if (result.linesCleared >= 2) {
+        Sound.instance.play(SoundEffect.combo, variant: result.linesCleared - 2);
+      } else {
+        // Climbs with the combo streak.
+        Sound.instance.play(SoundEffect.clear, variant: result.comboAfter - 1);
       }
+      result.allClear
+          ? Haptics.allClear()
+          : Haptics.clear(lines: result.linesCleared, combo: result.comboAfter);
     } else {
-      Sound.instance.play(SoundEffect.place);
-      if (haptics) HapticFeedback.lightImpact();
+      Sound.instance.play(SoundEffect.place, variant: _rng.nextInt(3));
+      Haptics.place();
     }
 
     if (_inTutorial) {
@@ -577,7 +579,7 @@ class _GameScreenState extends State<GameScreen>
     if (_over || !mounted) return;
     Sound.instance.play(SoundEffect.gameOver);
     Music.instance.duck(true);
-    if (AppState.instance.hapticsOn) HapticFeedback.heavyImpact();
+    Haptics.gameOver();
     setState(() {
       _over = true;
       _armed = null;
