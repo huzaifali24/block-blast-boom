@@ -5,6 +5,7 @@ import '../game/modes.dart';
 import '../game/skins.dart';
 import 'achievements.dart';
 import 'missions.dart';
+import 'music.dart';
 import 'sound.dart';
 import 'theme.dart';
 
@@ -35,6 +36,7 @@ class AppState extends ChangeNotifier {
   static const _kOwnedThemes = 'owned_themes';
   static const _kOwnedSkins = 'owned_skins';
   static const _kSound = 'sound_on';
+  static const _kMusic = 'music_on';
   static const _kHaptics = 'haptics_on';
   static const _kReminders = 'reminders_on';
   static const _kNotifAsked = 'notif_asked';
@@ -53,6 +55,7 @@ class AppState extends ChangeNotifier {
   Set<String> _ownedSkins = {};
 
   bool soundOn = true;
+  bool musicOn = true;
   bool hapticsOn = true;
   bool remindersOn = true;
   bool notifAsked = false;
@@ -79,6 +82,7 @@ class AppState extends ChangeNotifier {
 
     app.soundOn = prefs.getBool(_kSound) ?? true;
     Sound.instance.enabled = app.soundOn;
+    app.musicOn = prefs.getBool(_kMusic) ?? true;
     app.hapticsOn = prefs.getBool(_kHaptics) ?? true;
     app.remindersOn = prefs.getBool(_kReminders) ?? true;
     app.notifAsked = prefs.getBool(_kNotifAsked) ?? false;
@@ -149,6 +153,13 @@ class AppState extends ChangeNotifier {
     soundOn = v;
     Sound.instance.enabled = v;
     _prefs.setBool(_kSound, v);
+    notifyListeners();
+  }
+
+  void setMusicOn(bool v) {
+    musicOn = v;
+    Music.instance.setEnabled(v);
+    _prefs.setBool(_kMusic, v);
     notifyListeners();
   }
 

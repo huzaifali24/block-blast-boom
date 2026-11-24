@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 
+import 'music.dart';
+
 /// The sound cues the game needs.
 enum SoundEffect { pick, place, clear, combo, gameOver, tap, coin }
 
@@ -21,7 +23,9 @@ class Sound {
     for (final fx in SoundEffect.values) {
       _clips[fx] = _Synth.build(fx);
       try {
-        _players[fx] = AudioPlayer()..setReleaseMode(ReleaseMode.stop);
+        _players[fx] = AudioPlayer()
+          ..setAudioContext(gameAudioContext())
+          ..setReleaseMode(ReleaseMode.stop);
       } catch (_) {
         // No audio plugin (tests) — stay silent.
       }

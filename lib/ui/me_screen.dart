@@ -76,6 +76,13 @@ class MeScreen extends StatelessWidget {
                 children: [
                   _SwitchRow(
                     theme: t,
+                    label: 'Music',
+                    value: app.musicOn,
+                    onChanged: app.setMusicOn,
+                  ),
+                  Divider(height: 1, color: t.line),
+                  _SwitchRow(
+                    theme: t,
                     label: 'Sound',
                     value: app.soundOn,
                     onChanged: app.setSoundOn,

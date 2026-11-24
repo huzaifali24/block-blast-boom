@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'app/ads.dart';
 import 'app/app_state.dart';
+import 'app/music.dart';
 import 'app/play_games.dart';
 import 'app/reminders.dart';
 import 'app/sound.dart';
@@ -17,6 +18,8 @@ Future<void> main() async {
   Ads.instance.adsRemoved = AppState.instance.adsRemoved;
   await Sound.instance.init();
   runApp(const BlockBoomApp());
+  // Not awaited: the loop renders on a background isolate the first time.
+  Music.instance.init(enabled: AppState.instance.musicOn);
   // After the first frame, so the consent form has a screen to appear over.
   WidgetsBinding.instance.addPostFrameCallback((_) {
     Ads.instance.init();

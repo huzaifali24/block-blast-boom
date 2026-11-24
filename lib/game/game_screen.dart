@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/app_state.dart';
+import '../app/music.dart';
 import '../app/sound.dart';
 import '../app/theme.dart';
 import '../ui/fx.dart';
@@ -101,6 +102,7 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   void dispose() {
+    Music.instance.duck(false);
     _pulse.dispose();
     super.dispose();
   }
@@ -114,6 +116,7 @@ class _GameScreenState extends State<GameScreen>
 
   void _restart() {
     _pulse.stop();
+    Music.instance.duck(false);
     setState(() {
       _day = widget.day ?? DateTime.now();
       _session = _newSession();
@@ -350,6 +353,7 @@ class _GameScreenState extends State<GameScreen>
       day: _day,
     );
     Sound.instance.play(SoundEffect.gameOver);
+    Music.instance.duck(true);
     if (AppState.instance.hapticsOn) HapticFeedback.heavyImpact();
     setState(() {
       _over = true;
@@ -1069,6 +1073,13 @@ class _GameScreenState extends State<GameScreen>
                 children: [
                   const ArcadeText('Paused', size: 38),
                   const SizedBox(height: 18),
+                  _ToggleRow(
+                    icon: Icons.music_note_rounded,
+                    label: 'Music',
+                    value: app.musicOn,
+                    theme: t,
+                    onChanged: app.setMusicOn,
+                  ),
                   _ToggleRow(
                     icon: Icons.volume_up_rounded,
                     label: 'Sound',
