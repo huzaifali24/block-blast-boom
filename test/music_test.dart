@@ -74,4 +74,34 @@ void main() {
   test('renders identically every time (cache-safe)', () {
     expect(MusicSynth.render(), equals(wav));
   });
+
+  test('menu and tense arrangements are valid, seamless and distinct', () {
+    final game = Int16List.sublistView(wav, 44);
+    for (final t in [MusicTrack.menu, MusicTrack.tense]) {
+      final w = MusicSynth.render(t);
+      final p = Int16List.sublistView(w, 44);
+      expect(p.length, MusicSynth.lengthOf(t), reason: t.name);
+      var peak = 0, sumSq = 0.0, maxStep = 0;
+      for (var i = 0; i < p.length; i++) {
+        peak = math.max(peak, p[i].abs());
+        sumSq += p[i] * p[i];
+        if (i > 0) maxStep = math.max(maxStep, (p[i] - p[i - 1]).abs());
+      }
+      expect(peak / 32768, closeTo(.85, .01), reason: t.name);
+      expect(math.sqrt(sumSq / p.length) / 32768, greaterThan(.05), reason: t.name);
+      expect((p.first - p.last).abs(), lessThanOrEqualTo(maxStep), reason: t.name);
+      expect(p.length == game.length && _same(p, game), isFalse,
+          reason: '${t.name} should differ from the game track');
+    }
+    // Tempo: the tense loop is shorter (faster), the menu loop longer.
+    expect(MusicSynth.lengthOf(MusicTrack.tense), lessThan(MusicSynth.length));
+    expect(MusicSynth.lengthOf(MusicTrack.menu), greaterThan(MusicSynth.length));
+  });
+}
+
+bool _same(Int16List a, Int16List b) {
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }

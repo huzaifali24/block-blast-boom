@@ -6,26 +6,63 @@ import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/widgets.dart';
 
+/// The background tracks, each an original loop composed in code.
+enum MusicTrack {
+  /// Home and menus: slow and dreamy, no drums.
+  menu(bpm: 84, transpose: -4, drums: 0, sixteenths: false, melody: true),
+
+  /// Normal play: the chill groove.
+  game(bpm: 100, transpose: 0, drums: 1, sixteenths: false, melody: true),
+
+  /// When the board is crowded: faster, driving, urgent.
+  tense(bpm: 124, transpose: 2, drums: 2, sixteenths: true, melody: false);
+
+  const MusicTrack({
+    required this.bpm,
+    required this.transpose,
+    required this.drums,
+    required this.sixteenths,
+    required this.melody,
+  });
+
+  final double bpm;
+
+  /// Semitones relative to the A-minor home key.
+  final int transpose;
+
+  /// 0 = soft hats only, 1 = groove, 2 = driving four-on-the-floor.
+  final int drums;
+
+  /// Arpeggio in 16th notes instead of 8ths.
+  final bool sixteenths;
+  final bool melody;
+}
+
 /// Looping background music.
 ///
-/// The track is an original chill loop composed in code by [MusicSynth]
-/// (no audio files or licenses needed). It's rendered once on a background
-/// isolate, cached as a WAV in the temp directory, and played on its own
-/// player at a low volume so sound effects sit on top of it. It pauses
-/// whenever the app leaves the foreground.
+/// Three tracks ([MusicTrack]) are rendered once each on a background
+/// isolate and cached as WAVs in the temp directory. Screens ask for a
+/// track with [play]; switching crossfades on one player. Music sits at a
+/// low volume under the sound effects and pauses whenever the app leaves
+/// the foreground.
 class Music with WidgetsBindingObserver {
   Music._();
   static final instance = Music._();
 
   static const _volume = .38;
-  static const _file = 'block_boom_music_v1.wav';
+  static String _fileFor(MusicTrack t) => 'block_boom_music_${t.name}_v2.wav';
 
   bool _enabled = true;
   bool _foreground = true;
   bool _ducked = false;
   AudioPlayer? _player;
+  MusicTrack _wanted = MusicTrack.menu;
+  MusicTrack? _loaded;
+  final Map<MusicTrack, String> _ready = {};
+  Future<void> _switching = Future.value();
 
   bool get enabled => _enabled;
+  MusicTrack get track => _wanted;
 
   /// Whether the track is loaded and playing right now (for diagnostics).
   bool get isPlaying => _player?.state == PlayerState.playing;
@@ -34,20 +71,72 @@ class Music with WidgetsBindingObserver {
     _enabled = enabled;
     WidgetsBinding.instance.addObserver(this);
     try {
-      final file = File('${Directory.systemTemp.path}/$_file');
-      if (!file.existsSync() || file.lengthSync() < 1000) {
-        final bytes = await Isolate.run(MusicSynth.render);
-        await file.writeAsBytes(bytes, flush: true);
-      }
       final p = AudioPlayer(playerId: 'music');
       await p.setAudioContext(gameAudioContext(music: true));
       await p.setReleaseMode(ReleaseMode.loop);
       await p.setVolume(_volume);
-      await p.setSource(DeviceFileSource(file.path, mimeType: 'audio/wav'));
       _player = p;
-      await _sync();
     } catch (e) {
       debugPrint('Music unavailable: $e');
+      return;
+    }
+    // Render the track needed now first, then the rest.
+    final order = [_wanted, ...MusicTrack.values.where((t) => t != _wanted)];
+    for (final t in order) {
+      try {
+        final file = File('${Directory.systemTemp.path}/${_fileFor(t)}');
+        if (!file.existsSync() || file.lengthSync() < 1000) {
+          final bytes = await _renderIsolated(t);
+          await file.writeAsBytes(bytes, flush: true);
+        }
+        _ready[t] = file.path;
+        if (t == _wanted) await _apply();
+      } catch (e) {
+        debugPrint('Music track ${t.name} unavailable: $e');
+      }
+    }
+  }
+
+  /// Switches to [t] (crossfading) once it's available.
+  void play(MusicTrack t) {
+    if (_wanted == t) return;
+    _wanted = t;
+    _switching = _switching.then((_) => _apply());
+  }
+
+  Future<void> _apply() async {
+    final p = _player;
+    final path = _ready[_wanted];
+    if (p == null || path == null || _loaded == _wanted) {
+      await _sync();
+      return;
+    }
+    try {
+      final playing = p.state == PlayerState.playing;
+      if (playing) await _fade(p, _target, 0);
+      await p.setSource(DeviceFileSource(path, mimeType: 'audio/wav'));
+      _loaded = _wanted;
+      await p.setVolume(0);
+      await _sync();
+      await _fade(p, 0, _target);
+    } catch (e) {
+      debugPrint('Music switch failed: $e');
+    }
+  }
+
+  /// Renders off the UI thread. Static so the closure captures only the
+  /// track (an instance closure would drag `this` into the isolate message,
+  /// which can't be sent).
+  static Future<Uint8List> _renderIsolated(MusicTrack t) =>
+      Isolate.run(() => MusicSynth.render(t));
+
+  double get _target => _ducked ? _volume * .3 : _volume;
+
+  static Future<void> _fade(AudioPlayer p, double from, double to) async {
+    const steps = 8;
+    for (var i = 1; i <= steps; i++) {
+      await p.setVolume(from + (to - from) * i / steps);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
     }
   }
 
@@ -60,12 +149,12 @@ class Music with WidgetsBindingObserver {
   Future<void> duck(bool on) async {
     if (_ducked == on) return;
     _ducked = on;
-    await _player?.setVolume(on ? _volume * .3 : _volume);
+    await _player?.setVolume(_target);
   }
 
   Future<void> _sync() async {
     final p = _player;
-    if (p == null) return;
+    if (p == null || _loaded == null) return;
     try {
       if (_enabled && _foreground) {
         if (p.state != PlayerState.playing) await p.resume();
@@ -100,8 +189,10 @@ AudioContext gameAudioContext({bool music = false}) => AudioContext(
       ),
     );
 
-/// Composes and renders the background loop.
+/// Composes and renders the background loops.
 ///
+/// Every track shares one 16-bar song, re-arranged per [MusicTrack]
+/// (tempo, key, drums, arpeggio speed). The game arrangement is
 /// 16 bars at 100 BPM in A minor (~38 s):
 ///   A section: Am F C G x2 — warm pad, plucked arpeggio with echo, bass;
 ///              drums fade in on the second pass.
@@ -112,11 +203,13 @@ class MusicSynth {
   MusicSynth._();
 
   static const rate = 32000;
-  static const bpm = 100.0;
   static const bars = 16;
-  static double get beat => 60 / bpm;
-  static double get barLen => beat * 4;
-  static int get length => (barLen * bars * rate).round();
+
+  /// Samples in one loop of [t].
+  static int lengthOf(MusicTrack t) => (60 / t.bpm * 4 * bars * rate).round();
+
+  /// Samples in the game track (the default).
+  static int get length => lengthOf(MusicTrack.game);
 
   // Chords: (bass midi, voicing).
   static const _am = (45, [57, 60, 64]);
@@ -144,12 +237,16 @@ class MusicSynth {
 
   static double _hz(num midi) => 440 * math.pow(2, (midi - 69) / 12).toDouble();
 
-  /// Renders the loop to a mono 16-bit WAV.
-  static Uint8List render() {
-    final n = length;
+  /// Renders [track]'s loop to a mono 16-bit WAV.
+  static Uint8List render([MusicTrack track = MusicTrack.game]) {
+    final beat = 60 / track.bpm;
+    final barLen = beat * 4;
+    final n = lengthOf(track);
     final mix = Float64List(n);
     final arp = Float64List(n);
     final rng = math.Random(3);
+    final k = track.transpose;
+    double hz(num midi) => _hz(midi + k);
 
     void note(Float64List buf, double start, double dur, double hz, double gain,
         double Function(double phase, double t) voice,
@@ -194,14 +291,20 @@ class MusicSynth {
       final (root, chord) = _progression[bar];
       final t0 = bar * barLen;
 
-      // Pad.
+      // Pad (fuller when there are no drums).
+      final padGain = track.drums == 0 ? .095 : .075;
       for (final m in chord) {
-        note(mix, t0, barLen, _hz(m), .075, pad, attack: .35, release: .9);
+        note(mix, t0, barLen, hz(m), padGain, pad, attack: .35, release: .9);
       }
 
-      // Bass: beat 1, the "and" of 2, beat 3.
-      for (final (b, d) in const [(0.0, 1.2), (1.5, .45), (2.0, 1.6)]) {
-        note(mix, t0 + b * beat, d * beat, _hz(root), .32, bass, release: .2);
+      // Bass: syncopated groove, or driving eighths when tense.
+      final bassHits = track.drums == 2
+          ? const [(0.0, .45), (.5, .45), (1.0, .45), (1.5, .45),
+              (2.0, .45), (2.5, .45), (3.0, .45), (3.5, .45)]
+          : const [(0.0, 1.2), (1.5, .45), (2.0, 1.6)];
+      for (final (b, d) in bassHits) {
+        note(mix, t0 + b * beat, d * beat, hz(root), track.drums == 2 ? .26 : .32,
+            bass, release: .2);
       }
 
       // Arpeggio (eighths), pattern varies by section.
@@ -209,30 +312,52 @@ class MusicSynth {
       final pattern = bar < 8
           ? const [0, 1, 2, 3, 2, 1, 0, 1]
           : const [0, 2, 1, 3, 0, 2, 3, 1];
-      for (var k = 0; k < 8; k++) {
-        note(arp, t0 + k * beat / 2, beat * .45, _hz(tones[pattern[k]]), .1,
-            pluck, release: .3);
+      final steps = track.sixteenths ? 16 : 8;
+      for (var s = 0; s < steps; s++) {
+        note(arp, t0 + s * beat * 4 / steps, beat * 4 / steps * .9,
+            hz(tones[pattern[s % 8]]), track.sixteenths ? .075 : .1, pluck,
+            release: track.sixteenths ? .15 : .3);
       }
 
-      // Drums: hats only on the first pass, full kit afterwards.
-      final full = bar >= 4;
-      for (var k = 0; k < 8; k++) {
-        final t = t0 + k * beat / 2;
-        if (k.isOdd || full) _hat(mix, t, k.isOdd ? .05 : .03, rng);
-      }
-      if (full) {
-        _kick(mix, t0, .42);
-        _kick(mix, t0 + 2 * beat, .36);
-        _snap(mix, t0 + beat, .07, rng);
-        _snap(mix, t0 + 3 * beat, .07, rng);
-      } else {
-        _kick(mix, t0, .28);
+      switch (track.drums) {
+        case 0:
+          // Just a whisper of hats on the offbeats.
+          for (var k = 0; k < 8; k++) {
+            if (k.isOdd) _hat(mix, t0 + k * beat / 2, .025, rng);
+          }
+        case 1:
+          // Hats only on the first pass, full kit afterwards.
+          final full = bar >= 4;
+          for (var k = 0; k < 8; k++) {
+            final t = t0 + k * beat / 2;
+            if (k.isOdd || full) _hat(mix, t, k.isOdd ? .05 : .03, rng);
+          }
+          if (full) {
+            _kick(mix, t0, .42);
+            _kick(mix, t0 + 2 * beat, .36);
+            _snap(mix, t0 + beat, .07, rng);
+            _snap(mix, t0 + 3 * beat, .07, rng);
+          } else {
+            _kick(mix, t0, .28);
+          }
+        default:
+          // Driving: kick on every beat, 16th hats, snaps on 2 and 4.
+          for (var k = 0; k < 16; k++) {
+            _hat(mix, t0 + k * beat / 4, k.isOdd ? .045 : .03, rng);
+          }
+          for (var b = 0; b < 4; b++) {
+            _kick(mix, t0 + b * beat, .44);
+          }
+          _snap(mix, t0 + beat, .09, rng);
+          _snap(mix, t0 + 3 * beat, .09, rng);
       }
     }
 
-    for (final (bar, b, d, m) in _melody) {
-      note(mix, bar * barLen + b * beat, d * beat * .95, _hz(m), .11, lead,
-          attack: .03, release: .35);
+    if (track.melody) {
+      for (final (bar, b, d, m) in _melody) {
+        note(mix, bar * barLen + b * beat, d * beat * .95, hz(m), .11, lead,
+            attack: .03, release: .35);
+      }
     }
 
     // Dotted-eighth echo on the arpeggio (circular, so the loop stays

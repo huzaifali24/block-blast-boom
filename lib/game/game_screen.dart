@@ -125,7 +125,26 @@ class _GameScreenState extends State<GameScreen>
   GameOutcome? _outcome;
 
   @override
+  void initState() {
+    super.initState();
+    Music.instance.play(MusicTrack.game);
+  }
+
+  /// Switches to the urgent track when the board is crowded, with
+  /// hysteresis so it doesn't flicker on every move.
+  void _updateMusicMood() {
+    final fill = _session.board.fillRatio;
+    final m = Music.instance;
+    if (fill >= .6 && m.track != MusicTrack.tense) {
+      m.play(MusicTrack.tense);
+    } else if (fill <= .45 && m.track == MusicTrack.tense) {
+      m.play(MusicTrack.game);
+    }
+  }
+
+  @override
   void dispose() {
+    Music.instance.play(MusicTrack.menu);
     Music.instance.duck(false);
     _pulse.dispose();
     super.dispose();
@@ -784,6 +803,7 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   Widget build(BuildContext context) {
+    _updateMusicMood();
     final t = AppState.instance.theme;
     final skin = AppState.instance.skin;
     final n = _session.board.size;
