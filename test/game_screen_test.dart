@@ -1,3 +1,4 @@
+import 'package:block_bloom/app/achievements.dart';
 import 'package:block_bloom/app/app_state.dart';
 import 'package:block_bloom/game/engine.dart';
 import 'package:block_bloom/game/game_screen.dart';
@@ -241,9 +242,13 @@ void main() {
     expect(s.board.isEmptyAt(1, 7), isTrue, reason: 'the line cleared');
     expect(s.combo, 3);
     final before = AppState.instance.coins;
+    final achBefore = achievementCoins();
     expect(find.text('+${ComboRewards.coinsFor(PlacementResult(placedCells: 1, clearedRows: const [7], clearedCols: const [], clearedCells: const {}, clearedCellColors: const {}, points: 0, comboAfter: 3))}'), findsWidgets);
     await frames(tester, 12);
+    // +5 combo coins, plus "Chain Reaction" for the first 3x combo (its
+    // coins land the moment it unlocks, before this check's baseline).
     expect(AppState.instance.coins, before + 5);
+    expect(achievementCoins(), greaterThanOrEqualTo(achBefore));
     await frames(tester, 30);
   });
 
@@ -268,6 +273,7 @@ void main() {
         w.painter.runtimeType.toString() == 'PiecePainter' &&
         (w.painter as dynamic).shape.family == 'dot'));
     final before = AppState.instance.coins;
+    final achBefore = achievementCoins();
     final g = await tester.startGesture(slot.center);
     await tester.pump(const Duration(milliseconds: 50));
     await g.moveTo(grid.topLeft + Offset(cell / 2, 8.9 * cell));
@@ -279,7 +285,13 @@ void main() {
     expect(find.byType(Confetti), findsOneWidget);
     expect(find.text('All Clear!'), findsWidgets);
     await frames(tester, 12);
-    expect(AppState.instance.coins, before + ComboRewards.allClear);
+    expect(AppState.instance.coins,
+        before + ComboRewards.allClear + achievementCoins() - achBefore);
     await frames(tester, 40);
   });
 }
+
+/// Coins paid by achievements unlocked so far (they top up balances).
+int achievementCoins() => AchievementTracker.all
+    .where(AchievementTracker.instance.isUnlocked)
+    .fold(0, (s, a) => s + a.coinReward);

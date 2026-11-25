@@ -1,3 +1,4 @@
+import 'package:block_bloom/app/achievements.dart';
 import 'package:block_bloom/app/app_state.dart';
 import 'package:block_bloom/game/engine.dart';
 import 'package:block_bloom/game/game_screen.dart';
@@ -59,7 +60,8 @@ void main() {
     expect(find.text('Next Level'), findsOneWidget);
     expect(AppState.instance.levelStars[1], 3);
     expect(AppState.instance.unlockedLevel, 2);
-    expect(AppState.instance.coins, level.firstClearCoins + 3 * Level.coinsPerStar);
+    expect(AppState.instance.coins,
+        level.firstClearCoins + 3 * Level.coinsPerStar + achievementCoins());
     await frames(tester, 40);
   });
 
@@ -109,3 +111,8 @@ void main() {
     expect(find.text('PLAY'), findsOneWidget);
   });
 }
+
+/// Coins paid by achievements unlocked so far (they top up balances).
+int achievementCoins() => AchievementTracker.all
+    .where(AchievementTracker.instance.isUnlocked)
+    .fold(0, (s, a) => s + a.coinReward);

@@ -5,7 +5,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/modes.dart';
 
-enum MissionMetric { linesCleared, scoreInOneGame, piecesPlaced, gamesPlayed }
+enum MissionMetric {
+  linesCleared,
+  scoreInOneGame,
+  piecesPlaced,
+  gamesPlayed,
+
+  /// Highest combo reached today (a max, not a sum).
+  comboReached,
+  levelsWon,
+  powerUpsUsed,
+  dailyPlayed,
+}
 
 class Mission {
   const Mission({
@@ -100,6 +111,42 @@ class Missions {
         target: 5,
         reward: 55,
         metric: MissionMetric.gamesPlayed),
+    Mission(
+        id: 'combo3',
+        title: 'Reach a 3x combo',
+        target: 3,
+        reward: 60,
+        metric: MissionMetric.comboReached),
+    Mission(
+        id: 'combo5',
+        title: 'Reach a 5x combo',
+        target: 5,
+        reward: 120,
+        metric: MissionMetric.comboReached),
+    Mission(
+        id: 'level1',
+        title: 'Win an Adventure level',
+        target: 1,
+        reward: 50,
+        metric: MissionMetric.levelsWon),
+    Mission(
+        id: 'level3',
+        title: 'Win 3 Adventure levels',
+        target: 3,
+        reward: 100,
+        metric: MissionMetric.levelsWon),
+    Mission(
+        id: 'power2',
+        title: 'Use 2 power-ups',
+        target: 2,
+        reward: 40,
+        metric: MissionMetric.powerUpsUsed),
+    Mission(
+        id: 'daily1',
+        title: 'Play the Daily Challenge',
+        target: 1,
+        reward: 40,
+        metric: MissionMetric.dailyPlayed),
   ];
 
   static List<Mission> _generate(int seed) {
@@ -149,6 +196,24 @@ class Missions {
       }
     }
     _persist();
+  }
+
+  /// Records something that happened outside the end-of-game report:
+  /// [value] is added, or for [MissionMetric.comboReached] kept as a max.
+  void reportEvent(MissionMetric metric, [int value = 1]) {
+    var changed = false;
+    for (final m in today) {
+      if (m.metric != metric) continue;
+      final current = progress[m.id] ?? 0;
+      final next = metric == MissionMetric.comboReached
+          ? max(current, value)
+          : current + value;
+      if (next != current) {
+        progress[m.id] = next;
+        changed = true;
+      }
+    }
+    if (changed) _persist();
   }
 
   /// Claims a completed mission's reward. Returns the coin amount granted,

@@ -448,6 +448,7 @@ class _GameScreenState extends State<GameScreen>
     });
 
     _rewardMove(result, center);
+    if (!_inTutorial) AppState.instance.reportMove(result);
 
     if (result.cleared) {
       if (result.linesCleared >= 2) {

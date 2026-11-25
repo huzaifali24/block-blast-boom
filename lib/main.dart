@@ -9,12 +9,18 @@ import 'app/reminders.dart';
 import 'app/sound.dart';
 import 'app/store.dart';
 import 'app/theme.dart';
+import 'ui/achievement_banner.dart';
 import 'ui/kodex_splash.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await AppState.load();
+  AppState.instance.onAchievementUnlocked = (a) {
+    AchievementToasts.show(a);
+    Sound.instance.play(SoundEffect.coin);
+    PlayGames.instance.unlock(a.id);
+  };
   Ads.instance.adsRemoved = AppState.instance.adsRemoved;
   await Sound.instance.init();
   runApp(const BlockBoomApp());
@@ -40,6 +46,8 @@ class BlockBoomApp extends StatelessWidget {
           return MaterialApp(
             title: 'Block Boom',
             debugShowCheckedModeBanner: false,
+            builder: (context, child) =>
+                AchievementBannerHost(child: child ?? const SizedBox()),
             theme: ThemeData(
               useMaterial3: true,
               fontFamily: kFont,

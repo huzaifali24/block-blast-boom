@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:block_bloom/app/achievements.dart';
 import 'package:block_bloom/app/app_state.dart';
 import 'package:block_bloom/app/rewards.dart';
 import 'package:block_bloom/game/powerups.dart';
@@ -46,7 +47,10 @@ void main() {
       now = now.add(const Duration(days: 1));
     }
     final coins = LoginCalendar.days.fold<int>(0, (a, r) => a + r.coins);
-    expect(app.coins, coins);
+    // Claiming all 7 days also unlocks the "Week Warrior" achievement.
+    final weekWarrior =
+        AchievementTracker.all.firstWhere((a) => a.id == 'login_7').coinReward;
+    expect(app.coins, coins + weekWarrior);
     expect(app.powerUpCount(PowerUp.bomb), bombs + 1 + 2);
   });
 

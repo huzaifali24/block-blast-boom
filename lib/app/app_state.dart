@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/board_painter.dart';
+import '../game/engine.dart';
 import '../game/levels.dart';
 import '../game/modes.dart';
 import '../game/powerups.dart';
@@ -206,6 +207,40 @@ class AppState extends ChangeNotifier {
         today: _today,
       );
 
+  // -------------------------------------------------------- achievements
+
+  /// Called for every achievement as it unlocks (the app shows a banner
+  /// and forwards it to Play Games).
+  void Function(AchievementDef a)? onAchievementUnlocked;
+
+  /// Unlocks anything the latest stats satisfy and pays its coins.
+  void _checkAchievements() {
+    final newly = AchievementTracker.instance
+        .evaluate(bestClassic: bestClassic, coins: coins);
+    _payAchievements(newly);
+  }
+
+  void _payAchievements(List<AchievementDef> newly) {
+    if (newly.isEmpty) return;
+    for (final a in newly) {
+      coins += a.coinReward;
+      onAchievementUnlocked?.call(a);
+    }
+    _prefs.setInt(_kCoins, coins);
+    notifyListeners();
+  }
+
+  /// Every placement during play: tracks combos, big clears, all-clears.
+  void reportMove(PlacementResult r) {
+    if (!r.cleared) return;
+    final t = AchievementTracker.instance;
+    t.raise(Counter.maxCombo, r.comboAfter);
+    if (r.linesCleared >= 3) t.bump(Counter.bigClears);
+    if (r.allClear) t.bump(Counter.allClears);
+    Missions.instance.reportEvent(MissionMetric.comboReached, r.comboAfter);
+    _checkAchievements();
+  }
+
   /// Claims today's login reward. Returns it, or null if already claimed.
   Reward? claimLoginReward() {
     if (!loginRewardReady) return null;
@@ -216,6 +251,10 @@ class AppState extends ChangeNotifier {
     _prefs.setInt(_kLoginDay, _today);
     _prefs.setInt(_kLoginStreak, day);
     grant(reward);
+    if (day == LoginCalendar.days.length) {
+      AchievementTracker.instance.bump(Counter.loginWeeks);
+      _checkAchievements();
+    }
     return reward;
   }
 
@@ -251,6 +290,8 @@ class AppState extends ChangeNotifier {
       _prefs.setInt(_kSpinsUsed, _spinsUsed);
     }
     grant(prize);
+    AchievementTracker.instance.bump(Counter.spins);
+    _checkAchievements();
   }
 
   /// Adds a reward's coins and power-ups.
@@ -292,7 +333,14 @@ class AppState extends ChangeNotifier {
     }
     coins += coinsEarned;
     _prefs.setInt(_kCoins, coins);
+    final t = AchievementTracker.instance;
+    if (before == null) {
+      t.bump(Counter.levelsWon);
+      Missions.instance.reportEvent(MissionMetric.levelsWon);
+    }
+    t.raise(Counter.stars, totalStars);
     notifyListeners();
+    _checkAchievements();
     return coinsEarned;
   }
 
@@ -308,6 +356,9 @@ class AppState extends ChangeNotifier {
   bool usePowerUp(PowerUp p) {
     if (powerUpCount(p) <= 0) return false;
     addPowerUp(p, -1);
+    AchievementTracker.instance.bump(Counter.powerUpsUsed);
+    Missions.instance.reportEvent(MissionMetric.powerUpsUsed);
+    _checkAchievements();
     return true;
   }
 
@@ -399,6 +450,8 @@ class AppState extends ChangeNotifier {
         _prefs.setInt(key, score);
       }
       _recordDailyPlayed(day);
+      AchievementTracker.instance.bump(Counter.dailyPlayed);
+      Missions.instance.reportEvent(MissionMetric.dailyPlayed);
     }
 
     var coinsEarned = (score / 20).floor() + linesCleared * 2;
@@ -416,6 +469,7 @@ class AppState extends ChangeNotifier {
     );
     for (final a in unlocked) {
       coinsEarned += a.coinReward;
+      onAchievementUnlocked?.call(a);
     }
 
     coins += coinsEarned;

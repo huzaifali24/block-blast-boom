@@ -29,7 +29,32 @@ class PlayGames extends ChangeNotifier {
   /// Game achievement id (see `achievements.dart`) -> Play Games achievement
   /// id. Filled in once the achievements exist in Play Console; until then
   /// nothing is sent.
-  static const achievementIds = <String, String>{};
+  static const achievementIds = <String, String>{
+    'first_clear': String.fromEnvironment('PGS_ACH_FIRST_CLEAR'),
+    'score_500': String.fromEnvironment('PGS_ACH_SCORE_500'),
+    'score_1500': String.fromEnvironment('PGS_ACH_SCORE_1500'),
+    'score_3000': String.fromEnvironment('PGS_ACH_SCORE_3000'),
+    'lines_50': String.fromEnvironment('PGS_ACH_LINES_50'),
+    'lines_250': String.fromEnvironment('PGS_ACH_LINES_250'),
+    'lines_1000': String.fromEnvironment('PGS_ACH_LINES_1000'),
+    'games_10': String.fromEnvironment('PGS_ACH_GAMES_10'),
+    'games_100': String.fromEnvironment('PGS_ACH_GAMES_100'),
+    'coins_1000': String.fromEnvironment('PGS_ACH_COINS_1000'),
+    'combo_3': String.fromEnvironment('PGS_ACH_COMBO_3'),
+    'combo_6': String.fromEnvironment('PGS_ACH_COMBO_6'),
+    'big_clear': String.fromEnvironment('PGS_ACH_BIG_CLEAR'),
+    'all_clear': String.fromEnvironment('PGS_ACH_ALL_CLEAR'),
+    'all_clear_10': String.fromEnvironment('PGS_ACH_ALL_CLEAR_10'),
+    'level_1': String.fromEnvironment('PGS_ACH_LEVEL_1'),
+    'level_10': String.fromEnvironment('PGS_ACH_LEVEL_10'),
+    'level_30': String.fromEnvironment('PGS_ACH_LEVEL_30'),
+    'stars_45': String.fromEnvironment('PGS_ACH_STARS_45'),
+    'stars_90': String.fromEnvironment('PGS_ACH_STARS_90'),
+    'powerups_10': String.fromEnvironment('PGS_ACH_POWERUPS_10'),
+    'spins_10': String.fromEnvironment('PGS_ACH_SPINS_10'),
+    'daily_7': String.fromEnvironment('PGS_ACH_DAILY_7'),
+    'login_7': String.fromEnvironment('PGS_ACH_LOGIN_7'),
+  };
 
   bool signedIn = false;
   String? playerName;
@@ -79,9 +104,13 @@ class PlayGames extends ChangeNotifier {
     }
   }
 
+  /// Sends a newly unlocked achievement to Play Games (no-op until the
+  /// IDs are configured and the player is signed in).
+  Future<void> unlock(String id) => _unlock(id);
+
   Future<void> _unlock(String id) async {
     final gid = achievementIds[id];
-    if (!signedIn || gid == null) return;
+    if (!signedIn || gid == null || gid.isEmpty) return;
     try {
       await Achievements.unlock(
           achievement: Achievement(androidID: gid, percentComplete: 100));

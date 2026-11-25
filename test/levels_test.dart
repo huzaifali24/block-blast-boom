@@ -1,3 +1,4 @@
+import 'package:block_bloom/app/achievements.dart';
 import 'package:block_bloom/app/app_state.dart';
 import 'package:block_bloom/game/engine.dart';
 import 'package:block_bloom/game/levels.dart';
@@ -94,6 +95,11 @@ void main() {
     expect(app.completeLevel(l1, 1), 0); // replay, no improvement
     expect(app.completeLevel(l1, 3), 2 * Level.coinsPerStar);
     expect(app.totalStars, 3);
-    expect(app.coins, first + 2 * Level.coinsPerStar);
+    expect(app.coins, first + 2 * Level.coinsPerStar + achievementCoins());
   });
 }
+
+/// Coins paid by achievements unlocked so far (they top up balances).
+int achievementCoins() => AchievementTracker.all
+    .where(AchievementTracker.instance.isUnlocked)
+    .fold(0, (s, a) => s + a.coinReward);
