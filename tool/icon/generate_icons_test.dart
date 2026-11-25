@@ -255,6 +255,14 @@ void main() {
             _composite(legacy, rounded: true));
       }
 
+      // Notification small icon: white silhouette filling a 24dp square
+      // (the mark spans roughly units 26..84, so show ~60 units).
+      const statDensities = {'mdpi': 24, 'hdpi': 36, 'xhdpi': 48, 'xxhdpi': 72, 'xxxhdpi': 96};
+      for (final MapEntry(key: d, value: px) in statDensities.entries) {
+        await _png('$_res/drawable-$d/ic_stat_boom.png', px,
+            _scaled(px, drawMonochrome, visible: 62));
+      }
+
       // Play Store: full-bleed square (Play applies its own mask).
       await _png('store/icon_512.png', 512, _composite(512, rounded: false));
 

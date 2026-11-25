@@ -35,7 +35,7 @@ class Reminders {
       await _plugin.initialize(
         settings: const InitializationSettings(
           android:
-              AndroidInitializationSettings('@mipmap/ic_launcher_foreground'),
+              AndroidInitializationSettings('@drawable/ic_stat_boom'),
         ),
       );
       _ready = true;
@@ -83,7 +83,7 @@ class Reminders {
               'Daily challenge',
               channelDescription:
                   'A reminder when a new daily board is ready',
-              color: Color(0xFF32FF00),
+              color: Color(0xFF6C74FF), // Block Boom indigo
             ),
           ),
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
