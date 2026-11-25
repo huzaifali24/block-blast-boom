@@ -6,6 +6,7 @@ import '../app/theme.dart';
 import '../game/board_painter.dart';
 import '../game/skins.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class ShopScreen extends StatelessWidget {
   const ShopScreen({super.key});
@@ -25,24 +26,24 @@ class ShopScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const ScreenTitle('Shop'),
+                ScreenTitle(tr('Shop')),
                 CoinPill(coins: app.coins, theme: t),
               ],
             ),
             const SizedBox(height: 24),
-            SectionLabel('Board themes', theme: t),
+            SectionLabel(tr('Board themes'), theme: t),
             _ThemeGrid(theme: t, app: app),
             const SizedBox(height: 24),
-            SectionLabel('Block skins', theme: t),
+            SectionLabel(tr('Block skins'), theme: t),
             _SkinGrid(theme: t, app: app),
             const SizedBox(height: 24),
-            SectionLabel('Coins', theme: t),
+            SectionLabel(tr('Coins'), theme: t),
             Row(
               children: [
                 Expanded(
                   child: _CoinPackCard(
                     theme: t,
-                    label: '500 coins',
+                    label: tr('500 coins'),
                     price: Store.instance.products[Store.coins500Id]?.price ??
                         '\$1.99',
                     onTap: () => Store.instance.buyCoins(Store.coins500Id),
@@ -52,7 +53,7 @@ class ShopScreen extends StatelessWidget {
                 Expanded(
                   child: _CoinPackCard(
                     theme: t,
-                    label: '1,500 coins',
+                    label: tr('1,500 coins'),
                     price: Store.instance.products[Store.coins1500Id]?.price ??
                         '\$4.99',
                     onTap: () => Store.instance.buyCoins(Store.coins1500Id),
@@ -62,7 +63,7 @@ class ShopScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             if (!app.adsRemoved) ...[
-              SectionLabel('Support the game', theme: t),
+              SectionLabel(tr('Support the game'), theme: t),
               SectionCard(
                 theme: t,
                 onTap: Store.instance.busy
@@ -76,8 +77,8 @@ class ShopScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Remove ads', style: t.title(15)),
-                          Text('One-time purchase, forever.',
+                          Text(tr('Remove ads'), style: t.title(15)),
+                          Text(tr('One-time purchase, forever.'),
                               style: t.body(12)),
                         ],
                       ),
@@ -122,7 +123,7 @@ class _ThemeGrid extends StatelessWidget {
             selected: app.theme.name == t.name,
             owned: app.ownsTheme(t),
             price: t.price,
-            label: t.name,
+            label: tr(t.name),
             theme: theme,
             colors: [t.backgroundTop, t.background, t.boardCell],
             onTap: () => app.buyOrSelectTheme(t),
@@ -153,7 +154,7 @@ class _SkinGrid extends StatelessWidget {
             selected: app.skin.id == s.id,
             owned: app.ownsSkin(s),
             price: s.priceCoins,
-            label: s.name,
+            label: tr(s.name),
             theme: theme,
             colors: s.colors.take(3).toList(),
             blockStyle: s.style,
@@ -240,12 +241,12 @@ class _SwatchCard extends StatelessWidget {
                 ),
               ),
               if (selected)
-                Text('IN USE',
+                Text(tr('IN USE'),
                     style: theme.body(11,
                         weight: FontWeight.w800,
                         color: const Color(0xFF3FD16B)))
               else if (owned)
-                Text('OWNED', style: theme.body(11, weight: FontWeight.w800))
+                Text(tr('OWNED'), style: theme.body(11, weight: FontWeight.w800))
               else
                 Row(
                   mainAxisSize: MainAxisSize.min,

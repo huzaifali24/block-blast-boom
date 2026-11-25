@@ -11,6 +11,7 @@ import 'adventure_screen.dart';
 import 'fx.dart';
 import 'rewards_ui.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -92,10 +93,10 @@ class HomeScreen extends StatelessWidget {
                           ),
                           Transform.translate(
                             offset: const Offset(0, -46),
-                            child: const Column(
+                            child: Column(
                               children: [
-                                ArcadeText('BLOCK', size: 58),
-                                ArcadeText('BOOM',
+                                ArcadeText(tr('BLOCK'), size: 58),
+                                ArcadeText(tr('BOOM'),
                                     size: 72,
                                     colors: [Color(0xFFFFB0C0), Color(0xFFF23F5B)],
                                     stroke: Color(0xFF3D0614)),
@@ -112,7 +113,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 18),
               Pulse(
                 child: PrimaryButton(
-                  label: 'PLAY',
+                  label: tr('PLAY'),
                   theme: t,
                   icon: Icons.play_arrow_rounded,
                   onPressed: () => _play(
@@ -127,7 +128,7 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: PrimaryButton(
-                      label: 'LEVEL ${app.unlockedLevel}',
+                      label: tr('LEVEL {n}', {'n': app.unlockedLevel}),
                       theme: t,
                       color: const Color(0xFFFF8A1C),
                       icon: Icons.map_rounded,
@@ -139,8 +140,8 @@ class HomeScreen extends StatelessWidget {
                   Expanded(
                     child: PrimaryButton(
                       label: app.dailyDoneToday
-                          ? 'BEST ${app.bestDailyFor(today)}'
-                          : 'DAILY',
+                          ? tr('BEST {n}', {'n': app.bestDailyFor(today)})
+                          : tr('DAILY'),
                       theme: t,
                       color: const Color(0xFF9B5BF5),
                       icon: Icons.calendar_month_rounded,
@@ -240,7 +241,7 @@ class _BestPlaque extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('BEST SCORE',
+                Text(tr('BEST SCORE'),
                     style: TextStyle(
                         fontFamily: kFont,
                         color: theme.subtext,

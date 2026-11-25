@@ -10,6 +10,7 @@ import '../app/sound.dart';
 import '../app/theme.dart';
 import 'fx.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// The icon for a reward: a coin for coins, else the first power-up.
 class RewardIcon extends StatelessWidget {
@@ -112,7 +113,7 @@ class _LoginCalendarState extends State<_LoginCalendar> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('DAY $day',
+            Text(tr('DAY {n}', {'n': day}),
                 style: TextStyle(
                     fontFamily: kFont,
                     fontSize: 11,
@@ -153,9 +154,9 @@ class _LoginCalendarState extends State<_LoginCalendar> {
       Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const ArcadeText('Daily Rewards', size: 34),
+          ArcadeText(tr('Daily Rewards'), size: 34),
           const SizedBox(height: 4),
-          Text('Come back every day for bigger prizes!',
+          Text(tr('Come back every day for bigger prizes!'),
               style: t.body(14, color: t.subtext, weight: FontWeight.w600)),
           const SizedBox(height: 14),
           Row(children: [
@@ -183,7 +184,7 @@ class _LoginCalendarState extends State<_LoginCalendar> {
             ChunkyButton(
               color: t.accent,
               onPressed: () => Navigator.of(context).pop(),
-              child: const _Label('Awesome!'),
+              child: _Label(tr('Awesome!')),
             ),
           ] else if (ready)
             Pulse(
@@ -191,15 +192,15 @@ class _LoginCalendarState extends State<_LoginCalendar> {
                 color: t.accent,
                 height: 58,
                 onPressed: _claim,
-                child: const _Label('CLAIM', icon: Icons.card_giftcard_rounded),
+                child: _Label(tr('CLAIM'), icon: Icons.card_giftcard_rounded),
               ),
             )
           else ...[
-            Text('Come back tomorrow for Day ${today % 7 + 1}!',
+            Text(tr('Come back tomorrow for Day {n}!', {'n': today % 7 + 1}),
                 style: t.body(15, color: Colors.white, weight: FontWeight.w700)),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('Close',
+              child: Text(tr('Close'),
                   style: t.body(15, color: t.subtext, weight: FontWeight.w700)),
             ),
           ],
@@ -343,7 +344,7 @@ class _WheelState extends State<_Wheel> with SingleTickerProviderStateMixin {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ArcadeText('Lucky Spin', size: 36),
+              ArcadeText(tr('Lucky Spin'), size: 36),
               const SizedBox(height: 12),
               SizedBox(
                 width: 290,
@@ -415,7 +416,7 @@ class _WheelState extends State<_Wheel> with SingleTickerProviderStateMixin {
                 height: 34,
                 child: _won == null
                     ? null
-                    : ArcadeText('You won ${_won!.label}!',
+                    : ArcadeText(tr('You won {prize}!', {'prize': _won!.label}),
                         size: 22,
                         colors: const [Colors.white, Color(0xFFFFE27A)],
                         stroke: const Color(0xFF14154A)),
@@ -427,7 +428,7 @@ class _WheelState extends State<_Wheel> with SingleTickerProviderStateMixin {
                     color: t.accent,
                     height: 58,
                     onPressed: _spinning ? null : () => _spin(viaAd: false),
-                    child: const _Label('FREE SPIN', icon: Icons.casino_rounded),
+                    child: _Label(tr('FREE SPIN'), icon: Icons.casino_rounded),
                   ),
                 )
               else
@@ -439,15 +440,15 @@ class _WheelState extends State<_Wheel> with SingleTickerProviderStateMixin {
                       : null,
                   child: _Label(
                       adLeft <= 0
-                          ? 'Come back tomorrow'
+                          ? tr('Come back tomorrow')
                           : Ads.instance.ready
-                              ? 'Spin again · Watch ad ($adLeft)'
-                              : 'Ad loading…',
+                              ? tr('Spin again · Watch ad ({n})', {'n': adLeft})
+                              : tr('Ad loading…'),
                       icon: Icons.smart_display_rounded),
                 ),
               TextButton(
                 onPressed: _spinning ? null : () => Navigator.of(context).pop(),
-                child: Text('Close',
+                child: Text(tr('Close'),
                     style: t.body(15, color: t.subtext, weight: FontWeight.w700)),
               ),
             ],
@@ -471,7 +472,7 @@ class _WheelState extends State<_Wheel> with SingleTickerProviderStateMixin {
         child: Column(
           children: [
             RewardIcon(reward: reward, size: 30),
-            Text(reward.coins > 0 ? '${reward.coins}' : reward.items.keys.first.label,
+            Text(reward.coins > 0 ? '${reward.coins}' : tr(reward.items.keys.first.label),
                 maxLines: 1,
                 overflow: TextOverflow.visible,
                 softWrap: false,

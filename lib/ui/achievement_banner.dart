@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/achievements.dart';
 import '../app/theme.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Queue of achievements waiting to be announced.
 class AchievementToasts {
@@ -128,20 +129,20 @@ class _Banner extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('ACHIEVEMENT UNLOCKED',
+                    Text(tr('ACHIEVEMENT UNLOCKED'),
                         style: TextStyle(
                             fontFamily: kFont,
                             color: Color(0xFFFFD45C),
                             fontSize: 11,
                             letterSpacing: 1.2,
                             fontWeight: FontWeight.w800)),
-                    Text(a.title,
+                    Text(tr(a.title),
                         style: const TextStyle(
                             fontFamily: kFont,
                             color: Colors.white,
                             fontSize: 17,
                             fontWeight: FontWeight.w800)),
-                    Text(a.description,
+                    Text(tr(a.description),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

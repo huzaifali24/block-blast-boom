@@ -10,6 +10,7 @@ import '../game/levels.dart';
 import '../game/modes.dart';
 import 'fx.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// The Adventure map: a winding trail of level bubbles, level 1 at the
 /// bottom, opening scrolled to the player's current level.
@@ -72,7 +73,7 @@ class _AdventureScreenState extends State<AdventureScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ArcadeText('Level ${level.number}', size: 40),
+              ArcadeText(tr('Level {n}', {'n': level.number}), size: 40),
               const SizedBox(height: 8),
               _Stars(stars: best, size: 34),
               const SizedBox(height: 16),
@@ -91,12 +92,12 @@ class _AdventureScreenState extends State<AdventureScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('GOAL',
+                          Text(tr('GOAL'),
                               style: t.body(11,
                                   color: t.subtext, weight: FontWeight.w800)),
                           Text(level.goal.describe(level.target),
                               style: t.title(19, color: Colors.white)),
-                          Text('3 stars in ${level.par} moves or fewer',
+                          Text(tr('3 stars in {n} moves or fewer', {'n': level.par}),
                               style: t.body(12, color: t.subtext)),
                         ],
                       ),
@@ -107,7 +108,7 @@ class _AdventureScreenState extends State<AdventureScreen> {
               const SizedBox(height: 18),
               Pulse(
                 child: PrimaryButton(
-                  label: 'PLAY',
+                  label: tr('PLAY'),
                   theme: t,
                   icon: Icons.play_arrow_rounded,
                   onPressed: () {
@@ -123,7 +124,7 @@ class _AdventureScreenState extends State<AdventureScreen> {
               ),
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: Text('Close',
+                child: Text(tr('Close'),
                     style:
                         t.body(15, color: t.subtext, weight: FontWeight.w700)),
               ),
@@ -171,7 +172,7 @@ class _AdventureScreenState extends State<AdventureScreen> {
                                 color: Colors.white, size: 26),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(child: ScreenTitle('Adventure')),
+                          Expanded(child: ScreenTitle(tr('Adventure'))),
                           Container(
                             padding: const EdgeInsets.fromLTRB(8, 5, 14, 5),
                             decoration: BoxDecoration(

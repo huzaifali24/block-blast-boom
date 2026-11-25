@@ -21,6 +21,7 @@ import 'powerups.dart';
 import 'session.dart';
 import 'skins.dart';
 import 'tutorial.dart';
+import '../l10n/l10n.dart';
 
 /// The playable screen: score HUD, board, the three-piece tray, and the
 /// game-over flow. Works for both [GameMode.classic] and [GameMode.daily] —
@@ -193,7 +194,7 @@ class _GameScreenState extends State<GameScreen>
     _tutDone = true;
     _restart();
     if (!skipped) {
-      setState(() => _praise = _Popup("You're ready!", 'Have fun', ++_gen));
+      setState(() => _praise = _Popup(tr("You're ready!"), tr('Have fun'), ++_gen));
     }
   }
 
@@ -565,17 +566,17 @@ class _GameScreenState extends State<GameScreen>
 
   _Popup? _praiseFor(PlacementResult r) {
     final combo = r.comboAfter;
-    final sub = combo >= 2 ? 'Combo x$combo' : null;
+    final sub = combo >= 2 ? tr('Combo x{n}', {'n': combo}) : null;
     if (r.allClear) {
-      return _Popup('All Clear!', sub ?? '+${ScoreRules.allClearBonus}', _gen);
+      return _Popup(tr('All Clear!'), sub ?? '+${ScoreRules.allClearBonus}', _gen);
     }
     final level = r.linesCleared + (combo - 1);
-    const words = [
-      'Good!',
-      'Great!',
-      'Excellent!',
-      'Amazing!',
-      'Unbelievable!'
+    final words = [
+      tr('Good!'),
+      tr('Great!'),
+      tr('Excellent!'),
+      tr('Amazing!'),
+      tr('Unbelievable!'),
     ];
     if (level < 2) return sub == null ? null : _Popup(sub, null, _gen);
     return _Popup(words[math.min(level - 2, words.length - 1)], sub, _gen);
@@ -721,7 +722,7 @@ class _GameScreenState extends State<GameScreen>
         skin: app.skin,
         rng: _rng,
       );
-      _praise = _Popup('Revived!', 'Keep going', _gen);
+      _praise = _Popup(tr('Revived!'), tr('Keep going'), _gen);
       _flashGen++;
       _flashStrength = .45;
       _shakeGen++;
@@ -748,7 +749,7 @@ class _GameScreenState extends State<GameScreen>
     }
     final app = AppState.instance;
     if (p == PowerUp.undo && _undo == null) {
-      _toast('Nothing to undo yet');
+      _toast(tr('Nothing to undo yet'));
       return;
     }
     if (app.powerUpCount(p) <= 0) {
@@ -809,7 +810,7 @@ class _GameScreenState extends State<GameScreen>
       }
     }
     if (!any) {
-      _toast('Aim at some blocks!');
+      _toast(tr('Aim at some blocks!'));
       return;
     }
     if (!app.usePowerUp(PowerUp.bomb)) return;
@@ -827,7 +828,7 @@ class _GameScreenState extends State<GameScreen>
         skin: app.skin,
         rng: _rng,
       );
-      _praise = _Popup('Boom!', null, _gen);
+      _praise = _Popup(tr('Boom!'), null, _gen);
       _flashGen++;
       _flashStrength = .3;
       _shakeGen++;
@@ -890,9 +891,9 @@ class _GameScreenState extends State<GameScreen>
                 children: [
                   PowerUpIcon(p: p, size: 76),
                   const SizedBox(height: 12),
-                  ArcadeText('Need a ${p.label}?', size: 30),
+                  ArcadeText(tr('Need a {item}?', {'item': tr(p.label)}), size: 30),
                   const SizedBox(height: 6),
-                  Text(p.hint,
+                  Text(tr(p.hint),
                       textAlign: TextAlign.center,
                       style: t.body(15, color: t.subtext)),
                   const SizedBox(height: 20),
@@ -909,7 +910,7 @@ class _GameScreenState extends State<GameScreen>
                           }
                         : null,
                     child: _ButtonLabel(Icons.smart_display_rounded,
-                        adReady ? 'Watch ad  +1' : 'No ad right now'),
+                        adReady ? tr('Watch ad  +1') : tr('No ad right now')),
                   ),
                   const SizedBox(height: 12),
                   ChunkyButton(
@@ -936,11 +937,11 @@ class _GameScreenState extends State<GameScreen>
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text('You have ${app.coins} coins',
+                  Text(tr('You have {n} coins', {'n': app.coins}),
                       style: t.body(13, color: t.subtext)),
                   TextButton(
                     onPressed: () => Navigator.of(ctx).pop(),
-                    child: Text('Not now',
+                    child: Text(tr('Not now'),
                         style: t.body(15,
                             color: t.subtext, weight: FontWeight.w700)),
                   ),
@@ -1315,7 +1316,7 @@ class _GameScreenState extends State<GameScreen>
                               child: Transform.scale(
                                   scale: .6 + .4 * k, child: child),
                             ),
-                            child: ArcadeText('No More Space',
+                            child: ArcadeText(tr('No More Space'),
                                 size: _cell * .8,
                                 colors: const [
                                   Color(0xFFFFB3B3),
@@ -1644,8 +1645,8 @@ class _GameScreenState extends State<GameScreen>
                     Flexible(
                       child: Text(
                           p == PowerUp.bomb
-                              ? 'Tap the board to blast'
-                              : 'Tap a piece to rotate',
+                              ? tr('Tap the board to blast')
+                              : tr('Tap a piece to rotate'),
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               fontFamily: kFont,
@@ -1703,14 +1704,14 @@ class _GameScreenState extends State<GameScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(step.title, style: t.title(18, color: Colors.white)),
-                    Text(step.text, style: t.body(13, color: t.subtext)),
+                    Text(tr(step.title), style: t.title(18, color: Colors.white)),
+                    Text(tr(step.text), style: t.body(13, color: t.subtext)),
                   ],
                 ),
               ),
               TextButton(
                 onPressed: () => _finishTutorial(skipped: true),
-                child: Text('Skip',
+                child: Text(tr('Skip'),
                     style:
                         t.body(14, color: t.subtext, weight: FontWeight.w800)),
               ),
@@ -1754,7 +1755,7 @@ class _GameScreenState extends State<GameScreen>
     if (_inTutorial) return const SizedBox.shrink();
     if (!_powerUpsAllowed) {
       return Center(
-        child: Text('Daily Challenge: same board for everyone, no power-ups',
+        child: Text(tr('Daily Challenge: same board for everyone, no power-ups'),
             textAlign: TextAlign.center,
             style: t.body(13, color: t.subtext, weight: FontWeight.w700)),
       );
@@ -1799,12 +1800,12 @@ class _GameScreenState extends State<GameScreen>
                   builder: (_, __) => Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const ArcadeText('Out of Space!',
+                      ArcadeText(tr('Out of Space!'),
                           size: 34,
                           colors: [Color(0xFFFFB3B3), Color(0xFFFF4D5E)],
                           stroke: Color(0xFF3D0610)),
                       const SizedBox(height: 4),
-                      Text('Score ${_session.score}  ·  keep going?',
+                      Text(tr('Score {n}  ·  keep going?', {'n': _session.score}),
                           style: t.body(15,
                               color: t.subtext, weight: FontWeight.w700)),
                       const SizedBox(height: 14),
@@ -1853,8 +1854,8 @@ class _GameScreenState extends State<GameScreen>
                             child: _ButtonLabel(
                                 Icons.smart_display_rounded,
                                 Ads.instance.ready
-                                    ? 'Revive  ·  Watch ad'
-                                    : 'Ad loading…'),
+                                    ? tr('Revive  ·  Watch ad')
+                                    : tr('Ad loading…')),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -1867,7 +1868,7 @@ class _GameScreenState extends State<GameScreen>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text('Revive  ·  ',
+                              Text(tr('Revive  ·  '),
                                   style: TextStyle(
                                       fontFamily: kFont,
                                       color: Colors.white,
@@ -1887,7 +1888,7 @@ class _GameScreenState extends State<GameScreen>
                       ],
                       if (rescues.isNotEmpty) ...[
                         const SizedBox(height: 14),
-                        Text('or use a power-up',
+                        Text(tr('or use a power-up'),
                             style: t.body(13,
                                 color: t.subtext, weight: FontWeight.w700)),
                         const SizedBox(height: 8),
@@ -1912,7 +1913,7 @@ class _GameScreenState extends State<GameScreen>
                       const SizedBox(height: 6),
                       TextButton(
                         onPressed: _reviveBusy ? null : _finishGame,
-                        child: Text('No thanks',
+                        child: Text(tr('No thanks'),
                             style: t.body(15,
                                 color: t.subtext, weight: FontWeight.w700)),
                       ),
@@ -1960,11 +1961,11 @@ class _GameScreenState extends State<GameScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ArcadeText('Level ${level.number}',
+                  ArcadeText(tr('Level {n}', {'n': level.number}),
                       size: 30,
                       colors: const [Colors.white, Color(0xFFCFD6FF)],
                       stroke: const Color(0xFF14154A)),
-                  const ArcadeText('Complete!', size: 48),
+                  ArcadeText(tr('Complete!'), size: 48),
                   const SizedBox(height: 14),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -2005,7 +2006,7 @@ class _GameScreenState extends State<GameScreen>
                           child: _StatChip(
                             icon: Icon(_goalIcon(level.goal),
                                 color: const Color(0xFF7FE3FF), size: 24),
-                            label: 'MOVES',
+                            label: tr('MOVES'),
                             value:
                                 '${_session.movesPlayed}  (par ${level.par})',
                           ),
@@ -2014,7 +2015,7 @@ class _GameScreenState extends State<GameScreen>
                         Expanded(
                           child: _StatChip(
                             icon: const CoinIcon(size: 22),
-                            label: 'COINS',
+                            label: tr('COINS'),
                             value: '+$_wonCoins',
                           ),
                         ),
@@ -2030,8 +2031,8 @@ class _GameScreenState extends State<GameScreen>
                         height: 60,
                         onPressed: () =>
                             _openLevel(Levels.get(level.number + 1)),
-                        child: const _ButtonLabel(
-                            Icons.arrow_forward_rounded, 'Next Level'),
+                        child: _ButtonLabel(
+                            Icons.arrow_forward_rounded, tr('Next Level')),
                       ),
                     ),
                   const SizedBox(height: 14),
@@ -2039,7 +2040,7 @@ class _GameScreenState extends State<GameScreen>
                     color: const Color(0xFF5865F2),
                     width: 260,
                     onPressed: () => Navigator.of(context).maybePop(),
-                    child: const _ButtonLabel(Icons.map_rounded, 'Map'),
+                    child: _ButtonLabel(Icons.map_rounded, tr('Map')),
                   ),
                 ],
               ),
@@ -2085,7 +2086,7 @@ class _GameScreenState extends State<GameScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (_adventure)
-                    const ArcadeText('Level Failed',
+                    ArcadeText(tr('Level Failed'),
                         size: 40,
                         colors: [Color(0xFFFFB3B3), Color(0xFFFF4D5E)],
                         stroke: Color(0xFF3D0610))
@@ -2096,9 +2097,9 @@ class _GameScreenState extends State<GameScreen>
                         shadows: [
                           Shadow(color: Color(0xAAFFB321), blurRadius: 24)
                         ]),
-                    const ArcadeText('New Best!', size: 46),
+                    ArcadeText(tr('New Best!'), size: 46),
                   ] else
-                    const ArcadeText('Game Over',
+                    ArcadeText(tr('Game Over'),
                         size: 40,
                         colors: [Colors.white, Color(0xFFCFD6FF)],
                         stroke: Color(0xFF14154A)),
@@ -2129,7 +2130,7 @@ class _GameScreenState extends State<GameScreen>
                     ),
                     child: Column(
                       children: [
-                        Text('SCORE',
+                        Text(tr('SCORE'),
                             style: TextStyle(
                                 fontFamily: kFont,
                                 color: t.subtext,
@@ -2154,7 +2155,7 @@ class _GameScreenState extends State<GameScreen>
                                 child: _StatChip(
                                   icon: Icon(_goalIcon(widget.level!.goal),
                                       color: const Color(0xFF7FE3FF), size: 24),
-                                  label: widget.level!.goal.label.toUpperCase(),
+                                  label: tr(widget.level!.goal.label).toUpperCase(),
                                   value:
                                       '${_session.progressFor(widget.level!.goal)}/${widget.level!.target}',
                                 ),
@@ -2164,7 +2165,7 @@ class _GameScreenState extends State<GameScreen>
                                 child: _StatChip(
                                   icon: const Icon(Icons.flag_rounded,
                                       color: Color(0xFFFFC93C), size: 24),
-                                  label: 'LEVEL',
+                                  label: tr('LEVEL'),
                                   value: '${widget.level!.number}',
                                 ),
                               ),
@@ -2173,7 +2174,7 @@ class _GameScreenState extends State<GameScreen>
                                 child: _StatChip(
                                   icon: const Icon(Icons.emoji_events_rounded,
                                       color: Color(0xFFFFC93C), size: 24),
-                                  label: 'BEST',
+                                  label: tr('BEST'),
                                   value: '$_best',
                                 ),
                               ),
@@ -2181,7 +2182,7 @@ class _GameScreenState extends State<GameScreen>
                               Expanded(
                                 child: _StatChip(
                                   icon: const CoinIcon(size: 22),
-                                  label: 'COINS',
+                                  label: tr('COINS'),
                                   value: '+${o?.coinsEarned ?? 0}',
                                 ),
                               ),
@@ -2202,7 +2203,7 @@ class _GameScreenState extends State<GameScreen>
                         if (mounted) _restart();
                       },
                       child: _ButtonLabel(Icons.replay_rounded,
-                          _adventure ? 'Retry' : 'Play Again'),
+                          _adventure ? tr('Retry') : tr('Play Again')),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -2214,15 +2215,15 @@ class _GameScreenState extends State<GameScreen>
                       if (mounted) Navigator.of(context).maybePop();
                     },
                     child: _adventure
-                        ? const _ButtonLabel(Icons.map_rounded, 'Map')
-                        : const _ButtonLabel(Icons.home_rounded, 'Home'),
+                        ? _ButtonLabel(Icons.map_rounded, tr('Map'))
+                        : _ButtonLabel(Icons.home_rounded, tr('Home')),
                   ),
                   if (!_adventure)
                     TextButton.icon(
                       onPressed: () => openLeaderboards(context),
                       icon: const Icon(Icons.leaderboard_rounded,
                           color: Color(0xFFFFD45C)),
-                      label: const Text('Leaderboard',
+                      label: Text(tr('Leaderboard'),
                           style: TextStyle(
                               fontFamily: kFont,
                               color: Color(0xFFFFD45C),
@@ -2271,25 +2272,25 @@ class _GameScreenState extends State<GameScreen>
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const ArcadeText('Paused', size: 38),
+                  ArcadeText(tr('Paused'), size: 38),
                   const SizedBox(height: 18),
                   _ToggleRow(
                     icon: Icons.music_note_rounded,
-                    label: 'Music',
+                    label: tr('Music'),
                     value: app.musicOn,
                     theme: t,
                     onChanged: app.setMusicOn,
                   ),
                   _ToggleRow(
                     icon: Icons.volume_up_rounded,
-                    label: 'Sound',
+                    label: tr('Sound'),
                     value: app.soundOn,
                     theme: t,
                     onChanged: app.setSoundOn,
                   ),
                   _ToggleRow(
                     icon: Icons.vibration_rounded,
-                    label: 'Vibration',
+                    label: tr('Vibration'),
                     value: app.hapticsOn,
                     theme: t,
                     onChanged: app.setHapticsOn,
@@ -2299,7 +2300,7 @@ class _GameScreenState extends State<GameScreen>
                     color: t.accent,
                     onPressed: () => Navigator.of(ctx).pop(),
                     child:
-                        const _ButtonLabel(Icons.play_arrow_rounded, 'Resume'),
+                        _ButtonLabel(Icons.play_arrow_rounded, tr('Resume')),
                   ),
                   const SizedBox(height: 12),
                   ChunkyButton(
@@ -2308,7 +2309,7 @@ class _GameScreenState extends State<GameScreen>
                       Navigator.of(ctx).pop();
                       _restart();
                     },
-                    child: const _ButtonLabel(Icons.replay_rounded, 'Restart'),
+                    child: _ButtonLabel(Icons.replay_rounded, tr('Restart')),
                   ),
                   const SizedBox(height: 12),
                   ChunkyButton(
@@ -2317,7 +2318,7 @@ class _GameScreenState extends State<GameScreen>
                       Navigator.of(ctx).pop();
                       Navigator.of(context).maybePop();
                     },
-                    child: const _ButtonLabel(Icons.home_rounded, 'Home'),
+                    child: _ButtonLabel(Icons.home_rounded, tr('Home')),
                   ),
                 ],
               );
@@ -2553,7 +2554,7 @@ class _LevelBadge extends StatelessWidget {
           children: [
             const Icon(Icons.flag_rounded, color: Colors.white, size: 22),
             const SizedBox(width: 6),
-            Text('LEVEL $number',
+            Text(tr('LEVEL {n}', {'n': number}),
                 style: const TextStyle(
                     fontFamily: kFont,
                     color: Colors.white,
@@ -2685,7 +2686,7 @@ class _DailyTag extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: Colors.white.withValues(alpha: .25)),
         ),
-        child: const Text('DAILY',
+        child: Text(tr('DAILY'),
             style: TextStyle(
                 fontFamily: kFont,
                 color: Colors.white,
@@ -2720,7 +2721,7 @@ class _ComboBadge extends StatelessWidget {
               const Icon(Icons.local_fire_department_rounded,
                   color: Colors.white, size: 20),
               const SizedBox(width: 4),
-              Text('COMBO x$combo',
+              Text(tr('COMBO x{n}', {'n': combo}),
                   style: const TextStyle(
                       fontFamily: kFont,
                       color: Colors.white,

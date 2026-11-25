@@ -10,6 +10,8 @@ dependencies:
   audioplayers: ^6.8.1
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_local_notifications: ^23.0.3
   flutter_timezone: ^5.1.1
   games_services: ^5.3.0
@@ -40,3 +42,8 @@ flutter:
           weight: 700
         - asset: assets/fonts/Poppins-ExtraBold.ttf
           weight: 800
+    # Urdu (Poppins has no Arabic-script glyphs). SIL OFL, see
+    # assets/fonts/OFL-NotoNastaliqUrdu.txt.
+    - family: NotoNastaliqUrdu
+      fonts:
+        - asset: assets/fonts/NotoNastaliqUrdu.ttf

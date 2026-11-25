@@ -6,6 +6,7 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'app_state.dart';
+import '../l10n/l10n.dart';
 
 /// Daily reminder notifications: "today's board is ready", with a streak
 /// nudge while one is going. Scheduled on the phone itself (no server): the
@@ -95,9 +96,9 @@ class Reminders {
   }
 
   static const _plain = [
-    ('Today\'s board is ready 💥', 'A fresh 8x8 grid is waiting. Blast it!'),
+    ("Today's board is ready 💥", 'A fresh 8x8 grid is waiting. Blast it!'),
     ('New daily challenge', 'Everyone plays the same board today. Beat it.'),
-    ('Time for a quick game?', 'Today\'s daily challenge is waiting.'),
+    ('Time for a quick game?', "Today's daily challenge is waiting."),
     ('Block Boom', 'Your daily puzzle is ready whenever you are.'),
   ];
 
@@ -108,10 +109,12 @@ class Reminders {
     final first = dayOffset == 0 || (dayOffset == 1 && app.dailyDoneToday);
     if (alive && first) {
       return (
-        'Don\'t lose your $streak-day streak! 🔥',
-        'Today\'s daily board is waiting. Keep it going.',
+        tr("Don't lose your {n}-day streak! 🔥", {'n': streak}),
+        tr("Today's daily board is waiting. Keep it going."),
       );
     }
-    return _plain[(DateTime.now().day + dayOffset) % _plain.length];
+    final (title, body) =
+        _plain[(DateTime.now().day + dayOffset) % _plain.length];
+    return (tr(title), tr(body));
   }
 }

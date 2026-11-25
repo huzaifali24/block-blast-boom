@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../game/powerups.dart';
+import '../l10n/l10n.dart';
 
 /// A bundle of coins and/or power-ups.
 class Reward {
@@ -10,8 +11,9 @@ class Reward {
 
   String get label {
     final parts = <String>[
-      if (coins > 0) '$coins coins',
-      for (final e in items.entries) '${e.value} ${e.key.label}',
+      if (coins > 0) tr('{n} coins', {'n': coins}),
+      for (final e in items.entries)
+        tr('{n} {item}', {'n': e.value, 'item': tr(e.key.label)}),
     ];
     return parts.join(' + ');
   }

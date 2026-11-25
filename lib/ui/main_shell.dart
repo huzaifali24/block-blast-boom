@@ -9,6 +9,7 @@ import 'me_screen.dart';
 import 'rewards_ui.dart';
 import 'shop_screen.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Bottom-tab shell: Home (play), Shop, Me (stats/achievements/settings),
 /// over the animated ambient background with a floating glass tab bar.
@@ -33,10 +34,11 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
-  static const _tabs = [
-    (icon: Icons.home_rounded, label: 'Home'),
-    (icon: Icons.storefront_rounded, label: 'Shop'),
-    (icon: Icons.person_rounded, label: 'Profile'),
+  // A getter so labels follow the current language.
+  static List<({IconData icon, String label})> get _tabs => [
+    (icon: Icons.home_rounded, label: tr('Home')),
+    (icon: Icons.storefront_rounded, label: tr('Shop')),
+    (icon: Icons.person_rounded, label: tr('Profile')),
   ];
 
   @override

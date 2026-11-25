@@ -10,6 +10,7 @@ import '../app/theme.dart';
 import '../game/game_screen.dart';
 import '../game/modes.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class MeScreen extends StatelessWidget {
   const MeScreen({super.key});
@@ -27,32 +28,32 @@ class MeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const ScreenTitle('Profile'),
+            ScreenTitle(tr('Profile')),
             const SizedBox(height: 20),
 
             _PlayGamesCard(theme: t),
             const SizedBox(height: 16),
 
-            SectionLabel('Stats', theme: t),
+            SectionLabel(tr('Stats'), theme: t),
             SectionCard(
               theme: t,
               child: Row(
                 children: [
-                  _Stat(theme: t, label: 'Best classic', value: '${app.bestClassic}'),
+                  _Stat(theme: t, label: tr('Best classic'), value: '${app.bestClassic}'),
                   _Stat(
                       theme: t,
-                      label: 'Lines cleared',
+                      label: tr('Lines cleared'),
                       value: '${AchievementTracker.instance.totalLinesCleared}'),
                   _Stat(
                       theme: t,
-                      label: 'Games played',
+                      label: tr('Games played'),
                       value: '${AchievementTracker.instance.gamesPlayed}'),
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
-            SectionLabel('Daily missions', theme: t),
+            SectionLabel(tr('Daily missions'), theme: t),
             for (final m in Missions.instance.today)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -60,7 +61,7 @@ class MeScreen extends StatelessWidget {
               ),
             const SizedBox(height: 14),
 
-            SectionLabel('Achievements', theme: t),
+            SectionLabel(tr('Achievements'), theme: t),
             for (final a in AchievementTracker.all)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -70,7 +71,7 @@ class MeScreen extends StatelessWidget {
               ),
             const SizedBox(height: 14),
 
-            SectionLabel('Settings', theme: t),
+            SectionLabel(tr('Settings'), theme: t),
             SectionCard(
               theme: t,
               padding: EdgeInsets.zero,
@@ -78,34 +79,46 @@ class MeScreen extends StatelessWidget {
                 children: [
                   _SwitchRow(
                     theme: t,
-                    label: 'Music',
+                    label: tr('Music'),
                     value: app.musicOn,
                     onChanged: app.setMusicOn,
                   ),
                   Divider(height: 1, color: t.line),
                   _SwitchRow(
                     theme: t,
-                    label: 'Sound',
+                    label: tr('Sound'),
                     value: app.soundOn,
                     onChanged: app.setSoundOn,
                   ),
                   Divider(height: 1, color: t.line),
                   _SwitchRow(
                     theme: t,
-                    label: 'Haptics',
+                    label: tr('Haptics'),
                     value: app.hapticsOn,
                     onChanged: app.setHapticsOn,
                   ),
                   Divider(height: 1, color: t.line),
                   _SwitchRow(
                     theme: t,
-                    label: 'Daily reminders',
+                    label: tr('Daily reminders'),
                     value: app.remindersOn,
                     onChanged: app.setRemindersOn,
                   ),
                   Divider(height: 1, color: t.line),
                   ListTile(
-                    title: Text('How to play', style: t.body(15, color: t.text)),
+                    title: Text(tr('Language'), style: t.body(15, color: t.text)),
+                    trailing: Text(
+                        switch (app.language) {
+                          'en' => 'English',
+                          'ur' => 'اردو',
+                          _ => tr('System'),
+                        },
+                        style: t.body(14, color: t.subtext, weight: FontWeight.w700)),
+                    onTap: () => _pickLanguage(context, t),
+                  ),
+                  Divider(height: 1, color: t.line),
+                  ListTile(
+                    title: Text(tr('How to play'), style: t.body(15, color: t.text)),
                     trailing: Icon(Icons.school_rounded, color: t.subtext),
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) =>
@@ -119,12 +132,12 @@ class MeScreen extends StatelessWidget {
             if (Ads.instance.privacyOptionsRequired)
               TextButton(
                 onPressed: Ads.instance.showPrivacyOptions,
-                child: const Text('Privacy preferences'),
+                child: Text(tr('Privacy preferences')),
               ),
             if (!app.adsRemoved)
               TextButton(
                 onPressed: Store.instance.busy ? null : Store.instance.restore,
-                child: const Text('Restore purchases'),
+                child: Text(tr('Restore purchases')),
               ),
           ],
         ),
@@ -150,18 +163,20 @@ class _PlayGamesCard extends StatelessWidget {
           Expanded(
             child: Text(
               pg.signedIn
-                  ? 'Signed in${pg.playerName != null ? ' as ${pg.playerName}' : ''}'
-                  : 'Sign in to Google Play Games for leaderboards',
+                  ? (pg.playerName != null
+                      ? tr('Signed in as {name}', {'name': pg.playerName!})
+                      : tr('Signed in'))
+                  : tr('Sign in to Google Play Games for leaderboards'),
               style: theme.body(13, color: theme.text),
             ),
           ),
           if (pg.signedIn)
             TextButton(
-                onPressed: pg.showLeaderboards, child: const Text('Rankings'))
+                onPressed: pg.showLeaderboards, child: Text(tr('Rankings')))
           else
             TextButton(
                 onPressed: pg.busy ? null : pg.signIn,
-                child: const Text('Sign in')),
+                child: Text(tr('Sign in'))),
         ],
       ),
     );
@@ -208,7 +223,7 @@ class _MissionTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(mission.title, style: theme.title(14)),
+                Text(tr(mission.title), style: theme.title(14)),
                 const SizedBox(height: 6),
                 ProgressBar(
                   value: progress / mission.target,
@@ -264,10 +279,10 @@ class _AchievementTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(achievement.title,
+                Text(tr(achievement.title),
                     style: theme.title(14,
                         color: unlocked ? theme.text : theme.subtext)),
-                Text(achievement.description, style: theme.body(12)),
+                Text(tr(achievement.description), style: theme.body(12)),
               ],
             ),
           ),
@@ -305,4 +320,39 @@ class _SwitchRow extends StatelessWidget {
       ),
     );
   }
+}
+
+void _pickLanguage(BuildContext context, AppTheme t) {
+  final app = AppState.instance;
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      backgroundColor: t.surface,
+      title: Text(tr('Language'), style: t.title(20)),
+      children: [
+        RadioGroup<String>(
+          groupValue: app.language,
+          onChanged: (v) {
+            app.setLanguage(v!);
+            Navigator.of(ctx).pop();
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (code, label) in [
+                ('system', tr('System')),
+                ('en', 'English'),
+                ('ur', 'اردو'),
+              ])
+                RadioListTile<String>(
+                  value: code,
+                  activeColor: t.gold,
+                  title: Text(label, style: t.body(16, color: t.text)),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }

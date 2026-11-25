@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/play_games.dart';
 import '../app/theme.dart';
+import '../l10n/l10n.dart';
 import '../game/powerups.dart';
 
 /// A full-width chunky 3D button in the accent color, used for every
@@ -473,14 +474,14 @@ Future<void> openLeaderboards(BuildContext context) async {
   final pg = PlayGames.instance;
   String? problem;
   if (!PlayGames.configured) {
-    problem = 'Leaderboards go live once Block Boom is on Google Play';
+    problem = tr('Leaderboards go live once Block Boom is on Google Play');
   } else if (!pg.supported) {
-    problem = 'Leaderboards need Google Play Games';
+    problem = tr('Leaderboards need Google Play Games');
   }
   if (problem == null) {
     await pg.showLeaderboards();
     if (pg.signedIn) return;
-    problem = 'Sign in to Google Play Games to see the rankings';
+    problem = tr('Sign in to Google Play Games to see the rankings');
   }
   if (!context.mounted) return;
   ScaffoldMessenger.of(context)

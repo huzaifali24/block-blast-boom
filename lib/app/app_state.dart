@@ -45,6 +45,7 @@ class AppState extends ChangeNotifier implements ProgressStore {
   static const _kOwnedSkins = 'owned_skins';
   static const _kSound = 'sound_on';
   static const _kMusic = 'music_on';
+  static const _kLanguage = 'language';
   static const _kPowerUpPrefix = 'powerup_';
   static const _kLevelStars = 'level_stars';
   static const _kTutorialDone = 'tutorial_done';
@@ -80,6 +81,9 @@ class AppState extends ChangeNotifier implements ProgressStore {
 
   bool soundOn = true;
   bool musicOn = true;
+
+  /// 'system' (follow the phone), 'en' or 'ur'.
+  String language = 'system';
   bool hapticsOn = true;
   bool remindersOn = true;
   bool notifAsked = false;
@@ -120,6 +124,7 @@ class AppState extends ChangeNotifier implements ProgressStore {
     app.soundOn = prefs.getBool(_kSound) ?? true;
     Sound.instance.enabled = app.soundOn;
     app.musicOn = prefs.getBool(_kMusic) ?? true;
+    app.language = prefs.getString(_kLanguage) ?? 'system';
     app.hapticsOn = prefs.getBool(_kHaptics) ?? true;
     app.remindersOn = prefs.getBool(_kReminders) ?? true;
     app.notifAsked = prefs.getBool(_kNotifAsked) ?? false;
@@ -496,6 +501,12 @@ class AppState extends ChangeNotifier implements ProgressStore {
     musicOn = v;
     Music.instance.setEnabled(v);
     _prefs.setBool(_kMusic, v);
+    notifyListeners();
+  }
+
+  void setLanguage(String v) {
+    language = v;
+    _prefs.setString(_kLanguage, v);
     notifyListeners();
   }
 

@@ -5,6 +5,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import 'ads.dart';
 import 'app_state.dart';
+import '../l10n/l10n.dart';
 
 /// Google Play purchases: "Remove Ads" (one-time, non-consumable) plus a
 /// couple of consumable coin packs for the shop.
@@ -77,7 +78,7 @@ class Store extends ChangeNotifier {
           purchaseParam: PurchaseParam(productDetails: product));
     } catch (e) {
       busy = false;
-      message = 'The purchase could not be started.';
+      message = tr('The purchase could not be started.');
       notifyListeners();
     }
   }
@@ -98,7 +99,7 @@ class Store extends ChangeNotifier {
           purchaseParam: PurchaseParam(productDetails: product));
     } catch (e) {
       busy = false;
-      message = 'The purchase could not be started.';
+      message = tr('The purchase could not be started.');
       notifyListeners();
     }
   }
@@ -106,7 +107,7 @@ class Store extends ChangeNotifier {
   Future<void> restore() async {
     message = null;
     if (!available) {
-      message = 'The store is not available right now.';
+      message = tr('The store is not available right now.');
       notifyListeners();
       return;
     }
@@ -119,7 +120,7 @@ class Store extends ChangeNotifier {
       if (!busy) return;
       busy = false;
       if (!AppState.instance.adsRemoved) {
-        message = 'No earlier purchase found for this Google account.';
+        message = tr('No earlier purchase found for this Google account.');
       }
       notifyListeners();
     });
@@ -140,13 +141,13 @@ class Store extends ChangeNotifier {
           break;
         case PurchaseStatus.error:
           busy = false;
-          message = 'The purchase did not go through.';
+          message = tr('The purchase did not go through.');
           break;
         case PurchaseStatus.canceled:
           busy = false;
           break;
         case PurchaseStatus.pending:
-          message = 'Your purchase is pending. It will complete shortly.';
+          message = tr('Your purchase is pending. It will complete shortly.');
           break;
       }
       if (p.pendingCompletePurchase) {

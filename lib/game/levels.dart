@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../l10n/l10n.dart';
 import 'engine.dart';
 
 /// What a level asks of the player.
@@ -11,7 +12,7 @@ enum LevelGoal {
   const LevelGoal(this.label, this._text);
   final String label;
   final String _text;
-  String describe(int n) => _text.replaceFirst('{n}', '$n');
+  String describe(int n) => tr(_text, {'n': n});
 }
 
 /// One Adventure level: a goal, a starting board (some blocks already
