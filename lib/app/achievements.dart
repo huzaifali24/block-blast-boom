@@ -266,6 +266,23 @@ class AchievementTracker {
 
   bool isUnlocked(AchievementDef a) => unlocked.contains(a.id);
 
+  /// Replaces lifetime stats with merged cloud-save values.
+  void restore({
+    required Set<String> unlocked,
+    required Map<String, int> counters,
+    required int totalLines,
+    required int gamesPlayed,
+  }) {
+    this.unlocked = Set.of(unlocked);
+    this.counters = Map.of(counters);
+    totalLinesCleared = totalLines;
+    this.gamesPlayed = gamesPlayed;
+    _prefs.setStringList(_kUnlocked, this.unlocked.toList());
+    _prefs.setInt(_kLines, totalLinesCleared);
+    _prefs.setInt(_kGames, this.gamesPlayed);
+    _saveCounters();
+  }
+
   int counter(String key) => counters[key] ?? 0;
 
   /// Adds [by] to a lifetime counter.

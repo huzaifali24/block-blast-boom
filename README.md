@@ -55,6 +55,14 @@ build, copy the example files and fill in your IDs:
    `PGS_LB_STARS`, and your Play Games project ID in
    `android/secrets.properties`.
 
+3. In Play Console → *Play Games Services* → *Configuration*, turn on
+   **Saved Games**: progress (coins, power-ups, stars, unlocks, purchases,
+   achievements) is backed up to the player's Google account and restored
+   on a new phone or reinstall. Records merge by keeping the best of both;
+   coins and power-ups come from the newer save.
+4. Achievements: create them in Play Console and put each ID in
+   `secrets.json` under its `PGS_ACH_*` key (see `secrets.example.json`).
+
 Scores are sent when a game ends (Classic/Daily) and when a level is won
 (total stars). Until the IDs are set, the leaderboard buttons tell the player
 leaderboards aren't live yet.

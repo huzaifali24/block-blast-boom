@@ -8,8 +8,10 @@ import '../game/modes.dart';
 import '../game/powerups.dart';
 import '../game/skins.dart';
 import 'achievements.dart';
+import 'cloud_save.dart';
 import 'missions.dart';
 import 'music.dart';
+import 'play_games.dart';
 import 'rewards.dart';
 import 'sound.dart';
 import 'theme.dart';
@@ -32,13 +34,14 @@ class GameOutcome {
 /// bookkeeping (daily streak, "have we asked for notification permission
 /// yet") that don't belong to any one screen. Loaded once at startup with
 /// [AppState.load]; everything else reads `AppState.instance` directly.
-class AppState extends ChangeNotifier {
+class AppState extends ChangeNotifier implements ProgressStore {
   AppState._();
   static final instance = AppState._();
 
   static const _kTheme = 'theme';
   static const _kSkin = 'skin';
   static const _kOwnedThemes = 'owned_themes';
+  static const _kProgressAt = 'progress_at';
   static const _kOwnedSkins = 'owned_skins';
   static const _kSound = 'sound_on';
   static const _kMusic = 'music_on';
@@ -61,6 +64,14 @@ class AppState extends ChangeNotifier {
   static const _kLastDailySeed = 'last_daily_seed';
 
   late SharedPreferences _prefs;
+
+  /// When the wallet (coins / power-ups) last changed, for cloud merges.
+  int _progressAt = 0;
+
+  /// Syncs progress with the player's Play Games cloud save.
+  late final CloudSave cloud =
+      CloudSave(this, PlayGamesCloud(() => PlayGames.instance.signedIn));
+  bool _applying = false;
 
   AppTheme theme = AppTheme.indigo;
   BlockSkin skin = Skins.classic;
@@ -114,6 +125,7 @@ class AppState extends ChangeNotifier {
     app.notifAsked = prefs.getBool(_kNotifAsked) ?? false;
 
     app.coins = prefs.getInt(_kCoins) ?? 0;
+    app._progressAt = prefs.getInt(_kProgressAt) ?? 0;
     app.tutorialDone = prefs.getBool(_kTutorialDone) ?? false;
     app._loginLastDay = prefs.getInt(_kLoginDay);
     app._loginStreakDay = prefs.getInt(_kLoginStreak) ?? 0;
@@ -155,7 +167,7 @@ class AppState extends ChangeNotifier {
       coins -= t.price;
       _ownedThemes = {..._ownedThemes, t.name};
       _prefs.setStringList(_kOwnedThemes, _ownedThemes.toList());
-      _prefs.setInt(_kCoins, coins);
+      _saveCoins();
     }
     theme = t;
     _prefs.setString(_kTheme, t.name);
@@ -169,7 +181,7 @@ class AppState extends ChangeNotifier {
       coins -= s.priceCoins;
       _ownedSkins = {..._ownedSkins, s.id};
       _prefs.setStringList(_kOwnedSkins, _ownedSkins.toList());
-      _prefs.setInt(_kCoins, coins);
+      _saveCoins();
     }
     skin = s;
     BlockArt.style = s.style;
@@ -181,7 +193,7 @@ class AppState extends ChangeNotifier {
   void addCoins(int amount) {
     if (amount == 0) return;
     coins += amount;
-    _prefs.setInt(_kCoins, coins);
+    _saveCoins();
     notifyListeners();
   }
 
@@ -207,6 +219,100 @@ class AppState extends ChangeNotifier {
         today: _today,
       );
 
+  void _saveCoins() {
+    _prefs.setInt(_kCoins, coins);
+    _touchWallet();
+  }
+
+  void _touchWallet() {
+    _progressAt = DateTime.now().millisecondsSinceEpoch;
+    _prefs.setInt(_kProgressAt, _progressAt);
+  }
+
+  /// Every saved change also queues a (debounced) cloud sync — except
+  /// while a cloud merge is being applied, which would loop.
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    if (!_applying) cloud.schedule();
+  }
+
+  // ------------------------------------------------------------ cloud save
+
+  @override
+  ProgressSnapshot snapshot() {
+    final t = AchievementTracker.instance;
+    return ProgressSnapshot(
+      savedAt: _progressAt,
+      coins: coins,
+      powerUps: {for (final e in powerUps.entries) e.key.name: e.value},
+      bestClassic: bestClassic,
+      levelStars: Map.of(levelStars),
+      ownedThemes: Set.of(_ownedThemes),
+      ownedSkins: Set.of(_ownedSkins),
+      adsRemoved: adsRemoved,
+      tutorialDone: tutorialDone,
+      theme: theme.name,
+      skin: skin.id,
+      achievements: Set.of(t.unlocked),
+      counters: Map.of(t.counters),
+      totalLines: t.totalLinesCleared,
+      gamesPlayed: t.gamesPlayed,
+    );
+  }
+
+  @override
+  void apply(ProgressSnapshot s) {
+    _applying = true;
+    try {
+      coins = s.coins;
+      _progressAt = s.savedAt;
+      _prefs.setInt(_kCoins, coins);
+      _prefs.setInt(_kProgressAt, _progressAt);
+      for (final p in PowerUp.values) {
+        final n = s.powerUps[p.name];
+        if (n == null) continue;
+        powerUps[p] = n;
+        _prefs.setInt('$_kPowerUpPrefix${p.name}', n);
+      }
+      if (s.bestClassic > bestClassic) {
+        bestClassic = s.bestClassic;
+        _prefs.setInt(_kBestClassic, bestClassic);
+      }
+      levelStars
+        ..clear()
+        ..addAll(s.levelStars);
+      _prefs.setStringList(
+          _kLevelStars, [for (final e in levelStars.entries) '${e.key}:${e.value}']);
+      _ownedThemes = Set.of(s.ownedThemes);
+      _ownedSkins = Set.of(s.ownedSkins);
+      _prefs.setStringList(_kOwnedThemes, _ownedThemes.toList());
+      _prefs.setStringList(_kOwnedSkins, _ownedSkins.toList());
+      if (s.adsRemoved && !adsRemoved) setAdsRemoved();
+      if (s.tutorialDone && !tutorialDone) setTutorialDone();
+      final th = AppTheme.byName(s.theme);
+      if (th.name == s.theme && ownsTheme(th)) {
+        theme = th;
+        _prefs.setString(_kTheme, th.name);
+      }
+      final sk = Skins.byId(s.skin);
+      if (sk.id == s.skin && ownsSkin(sk)) {
+        skin = sk;
+        BlockArt.style = sk.style;
+        _prefs.setString(_kSkin, sk.id);
+      }
+      AchievementTracker.instance.restore(
+        unlocked: s.achievements,
+        counters: s.counters,
+        totalLines: s.totalLines,
+        gamesPlayed: s.gamesPlayed,
+      );
+      notifyListeners();
+    } finally {
+      _applying = false;
+    }
+  }
+
   // -------------------------------------------------------- achievements
 
   /// Called for every achievement as it unlocks (the app shows a banner
@@ -226,7 +332,7 @@ class AppState extends ChangeNotifier {
       coins += a.coinReward;
       onAchievementUnlocked?.call(a);
     }
-    _prefs.setInt(_kCoins, coins);
+    _saveCoins();
     notifyListeners();
   }
 
@@ -298,12 +404,13 @@ class AppState extends ChangeNotifier {
   void grant(Reward r) {
     if (r.coins > 0) {
       coins += r.coins;
-      _prefs.setInt(_kCoins, coins);
+      _saveCoins();
     }
     for (final e in r.items.entries) {
       powerUps[e.key] = powerUpCount(e.key) + e.value;
       _prefs.setInt('$_kPowerUpPrefix${e.key.name}', powerUps[e.key]!);
     }
+    _touchWallet();
     notifyListeners();
   }
 
@@ -332,7 +439,7 @@ class AppState extends ChangeNotifier {
           _kLevelStars, [for (final e in levelStars.entries) '${e.key}:${e.value}']);
     }
     coins += coinsEarned;
-    _prefs.setInt(_kCoins, coins);
+    _saveCoins();
     final t = AchievementTracker.instance;
     if (before == null) {
       t.bump(Counter.levelsWon);
@@ -349,6 +456,7 @@ class AppState extends ChangeNotifier {
   void addPowerUp(PowerUp p, [int n = 1]) {
     powerUps[p] = powerUpCount(p) + n;
     _prefs.setInt('$_kPowerUpPrefix${p.name}', powerUps[p]!);
+    _touchWallet();
     notifyListeners();
   }
 
@@ -372,7 +480,7 @@ class AppState extends ChangeNotifier {
   bool spendCoins(int amount) {
     if (coins < amount) return false;
     coins -= amount;
-    _prefs.setInt(_kCoins, coins);
+    _saveCoins();
     notifyListeners();
     return true;
   }
@@ -473,7 +581,7 @@ class AppState extends ChangeNotifier {
     }
 
     coins += coinsEarned;
-    _prefs.setInt(_kCoins, coins);
+    _saveCoins();
     notifyListeners();
 
     return GameOutcome(

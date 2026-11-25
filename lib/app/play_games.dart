@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:games_services/games_services.dart';
 
 import 'achievements.dart' show AchievementTracker;
+import 'ads.dart';
 import 'app_state.dart';
 
 /// Google Play Games: sign-in and leaderboards for the two scores that
@@ -97,6 +98,9 @@ class PlayGames extends ChangeNotifier {
       playerName = await Player.getPlayerName();
     } catch (_) {}
     notifyListeners();
+    // Pull this player's cloud save and merge it in (new phone, reinstall).
+    await AppState.instance.cloud.sync();
+    if (AppState.instance.adsRemoved) Ads.instance.removeAds();
     await submitAll();
     // Achievements earned before signing in (or on another phone).
     for (final id in AchievementTracker.instance.unlocked) {
