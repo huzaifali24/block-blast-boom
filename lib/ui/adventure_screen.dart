@@ -66,7 +66,8 @@ class _AdventureScreenState extends State<AdventureScreen> {
               end: Alignment.bottomCenter,
               colors: [Color.lerp(t.surface, Colors.white, .14)!, t.surface],
             ),
-            border: Border.all(color: Colors.white.withValues(alpha: .18), width: 1.5),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: .18), width: 1.5),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -83,14 +84,16 @@ class _AdventureScreenState extends State<AdventureScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(_goalIcon(level.goal), color: const Color(0xFF7FE3FF), size: 34),
+                    Icon(_goalIcon(level.goal),
+                        color: const Color(0xFF7FE3FF), size: 34),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('GOAL',
-                              style: t.body(11, color: t.subtext, weight: FontWeight.w800)),
+                              style: t.body(11,
+                                  color: t.subtext, weight: FontWeight.w800)),
                           Text(level.goal.describe(level.target),
                               style: t.title(19, color: Colors.white)),
                           Text('3 stars in ${level.par} moves or fewer',
@@ -111,8 +114,8 @@ class _AdventureScreenState extends State<AdventureScreen> {
                     Navigator.of(ctx).pop();
                     Navigator.of(context)
                         .push(MaterialPageRoute(
-                          builder: (_) =>
-                              GameScreen(mode: GameMode.adventure, level: level),
+                          builder: (_) => GameScreen(
+                              mode: GameMode.adventure, level: level),
                         ))
                         .then((_) => setState(() {}));
                   },
@@ -121,7 +124,8 @@ class _AdventureScreenState extends State<AdventureScreen> {
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
                 child: Text('Close',
-                    style: t.body(15, color: t.subtext, weight: FontWeight.w700)),
+                    style:
+                        t.body(15, color: t.subtext, weight: FontWeight.w700)),
               ),
             ],
           ),
@@ -149,96 +153,103 @@ class _AdventureScreenState extends State<AdventureScreen> {
           body: AmbientBackground(
             theme: t,
             child: SafeArea(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 16, 4),
-                    child: Row(
-                      children: [
-                        ChunkyButton(
-                          color: Color.lerp(t.surface, Colors.white, .12)!,
-                          width: 48,
-                          height: 44,
-                          radius: 15,
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          child: const Icon(Icons.arrow_back_rounded,
-                              color: Colors.white, size: 26),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(child: ScreenTitle('Adventure')),
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(8, 5, 14, 5),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: .3),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: Colors.white.withValues(alpha: .12)),
+              child: MaxWidth(
+                width: 620,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 16, 4),
+                      child: Row(
+                        children: [
+                          ChunkyButton(
+                            color: Color.lerp(t.surface, Colors.white, .12)!,
+                            width: 48,
+                            height: 44,
+                            radius: 15,
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            child: const Icon(Icons.arrow_back_rounded,
+                                color: Colors.white, size: 26),
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.star_rounded,
-                                  color: Color(0xFFFFCC33), size: 26),
-                              const SizedBox(width: 4),
-                              Text('${app.totalStars}/${Levels.count * 3}',
-                                  style: const TextStyle(
-                                      fontFamily: kFont,
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, c) {
-                        final w = c.maxWidth;
-                        final h = Levels.count * _rowH + 60;
-                        Offset pos(int n) =>
-                            Offset(w * _x(n), h - 40 - (n - .5) * _rowH);
-                        return SingleChildScrollView(
-                          controller: _scroll,
-                          reverse: true,
-                          child: SizedBox(
-                            width: w,
-                            height: h,
-                            child: Stack(
+                          const SizedBox(width: 12),
+                          const Expanded(child: ScreenTitle('Adventure')),
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(8, 5, 14, 5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: .3),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: .12)),
+                            ),
+                            child: Row(
                               children: [
-                                Positioned.fill(
-                                  child: CustomPaint(
-                                    painter: _TrailPainter(
-                                      points: [
-                                        for (var n = 1; n <= Levels.count; n++) pos(n)
-                                      ],
-                                      reached: unlocked,
-                                    ),
-                                  ),
-                                ),
-                                for (var n = 1; n <= Levels.count; n++)
-                                  Positioned(
-                                    left: pos(n).dx - _node / 2,
-                                    top: pos(n).dy - _node / 2,
-                                    child: _LevelNode(
-                                      number: n,
-                                      stars: app.levelStars[n],
-                                      current: n == unlocked &&
-                                          !app.levelStars.containsKey(n),
-                                      locked: n > unlocked,
-                                      size: _node,
-                                      onTap: n > unlocked
-                                          ? null
-                                          : () => _open(Levels.get(n)),
-                                    ),
-                                  ),
+                                const Icon(Icons.star_rounded,
+                                    color: Color(0xFFFFCC33), size: 26),
+                                const SizedBox(width: 4),
+                                Text('${app.totalStars}/${Levels.count * 3}',
+                                    style: const TextStyle(
+                                        fontFamily: kFont,
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800)),
                               ],
                             ),
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, c) {
+                          final w = c.maxWidth;
+                          final h = Levels.count * _rowH + 60;
+                          Offset pos(int n) =>
+                              Offset(w * _x(n), h - 40 - (n - .5) * _rowH);
+                          return SingleChildScrollView(
+                            controller: _scroll,
+                            reverse: true,
+                            child: SizedBox(
+                              width: w,
+                              height: h,
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: CustomPaint(
+                                      painter: _TrailPainter(
+                                        points: [
+                                          for (var n = 1;
+                                              n <= Levels.count;
+                                              n++)
+                                            pos(n)
+                                        ],
+                                        reached: unlocked,
+                                      ),
+                                    ),
+                                  ),
+                                  for (var n = 1; n <= Levels.count; n++)
+                                    Positioned(
+                                      left: pos(n).dx - _node / 2,
+                                      top: pos(n).dy - _node / 2,
+                                      child: _LevelNode(
+                                        number: n,
+                                        stars: app.levelStars[n],
+                                        current: n == unlocked &&
+                                            !app.levelStars.containsKey(n),
+                                        locked: n > unlocked,
+                                        size: _node,
+                                        onTap: n > unlocked
+                                            ? null
+                                            : () => _open(Levels.get(n)),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -321,7 +332,8 @@ class _LevelNode extends StatelessWidget {
             offset: const Offset(0, 5),
           ),
           if (current)
-            const BoxShadow(color: Color(0xAA3FD16B), blurRadius: 24, spreadRadius: 4),
+            const BoxShadow(
+                color: Color(0xAA3FD16B), blurRadius: 24, spreadRadius: 4),
         ],
       ),
       child: Center(
@@ -330,7 +342,9 @@ class _LevelNode extends StatelessWidget {
             : ArcadeText('$number',
                 size: 30,
                 colors: const [Colors.white, Color(0xFFF2F2F2)],
-                stroke: cleared ? const Color(0xFF8A4E00) : const Color(0xFF0B5A2A)),
+                stroke: cleared
+                    ? const Color(0xFF8A4E00)
+                    : const Color(0xFF0B5A2A)),
       ),
     );
     if (current) node = Pulse(amount: .08, period: 800, child: node);
@@ -371,7 +385,9 @@ class _Stars extends StatelessWidget {
                 color: i < stars
                     ? const Color(0xFFFFCC33)
                     : Colors.white.withValues(alpha: .25),
-                shadows: const [Shadow(color: Color(0x66000000), blurRadius: 4)]),
+                shadows: const [
+                  Shadow(color: Color(0x66000000), blurRadius: 4)
+                ]),
         ],
       );
 }

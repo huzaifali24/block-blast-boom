@@ -8,6 +8,7 @@ import 'home_screen.dart';
 import 'me_screen.dart';
 import 'rewards_ui.dart';
 import 'shop_screen.dart';
+import 'widgets.dart';
 
 /// Bottom-tab shell: Home (play), Shop, Me (stats/achievements/settings),
 /// over the animated ambient background with a floating glass tab bar.
@@ -52,56 +53,62 @@ class _MainShellState extends State<MainShell> {
             // With extendBody, the bottom inset already includes the
             // floating tab bar and the system navigation bar.
             child: SafeArea(
-              child: IndexedStack(
-                index: _tab,
-                children: const [
-                  HomeScreen(),
-                  ShopScreen(),
-                  MeScreen(),
-                ],
+              child: MaxWidth(
+                child: IndexedStack(
+                  index: _tab,
+                  children: const [
+                    HomeScreen(),
+                    ShopScreen(),
+                    MeScreen(),
+                  ],
+                ),
               ),
             ),
           ),
           bottomNavigationBar: SafeArea(
             top: false,
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(26),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color.lerp(t.surface, Colors.white, .12)!.withValues(alpha: .95),
-                    t.surface.withValues(alpha: .95),
+            child: MaxWidth(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color.lerp(t.surface, Colors.white, .12)!
+                          .withValues(alpha: .95),
+                      t.surface.withValues(alpha: .95),
+                    ],
+                  ),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: .14)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .4),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
                   ],
                 ),
-                border: Border.all(color: Colors.white.withValues(alpha: .14)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .4),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  for (var i = 0; i < _tabs.length; i++)
-                    Expanded(
-                      child: _TabButton(
-                        icon: _tabs[i].icon,
-                        label: _tabs[i].label,
-                        selected: _tab == i,
-                        theme: t,
-                        onTap: () {
-                          if (_tab != i) Sound.instance.play(SoundEffect.tap);
-                          setState(() => _tab = i);
-                        },
+                child: Row(
+                  children: [
+                    for (var i = 0; i < _tabs.length; i++)
+                      Expanded(
+                        child: _TabButton(
+                          icon: _tabs[i].icon,
+                          label: _tabs[i].label,
+                          selected: _tab == i,
+                          theme: t,
+                          onTap: () {
+                            if (_tab != i) Sound.instance.play(SoundEffect.tap);
+                            setState(() => _tab = i);
+                          },
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

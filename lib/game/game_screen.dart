@@ -27,7 +27,11 @@ import 'tutorial.dart';
 /// only how the [GameSession] is seeded differs.
 class GameScreen extends StatefulWidget {
   const GameScreen(
-      {super.key, required this.mode, this.day, this.level, this.tutorial = false});
+      {super.key,
+      required this.mode,
+      this.day,
+      this.level,
+      this.tutorial = false});
 
   final GameMode mode;
 
@@ -452,7 +456,8 @@ class _GameScreenState extends State<GameScreen>
 
     if (result.cleared) {
       if (result.linesCleared >= 2) {
-        Sound.instance.play(SoundEffect.combo, variant: result.linesCleared - 2);
+        Sound.instance
+            .play(SoundEffect.combo, variant: result.linesCleared - 2);
       } else {
         // Climbs with the combo streak.
         Sound.instance.play(SoundEffect.clear, variant: result.comboAfter - 1);
@@ -974,38 +979,41 @@ class _GameScreenState extends State<GameScreen>
             key: _rootKey,
             clipBehavior: Clip.none,
             children: [
-              Column(
-                children: [
-                  _hud(t),
-                  Expanded(
-                    child: LayoutBuilder(builder: (context, c) {
-                      // The tray is ~3.3 board cells tall; size the board so
-                      // board + tray + minimum breathing room always fit.
-                      const trayCells = 3.3;
-                      const barH = 72.0;
-                      final byHeight =
-                          (c.maxHeight - 40 - barH) / (1 + trayCells * .94 / n);
-                      final outer = math.min(c.maxWidth - 16, byHeight);
-                      final pad = outer * .03;
-                      final grid = outer - pad * 2;
-                      _cell = grid / n;
-                      _trayCell =
-                          math.min(_cell * .6, (c.maxWidth / 3 - 16) / 5);
-                      return Column(
-                        children: [
-                          const Spacer(flex: 2),
-                          _board(t, skin, outer, pad, grid),
-                          Expanded(
-                              flex: 3, child: Center(child: _armedHint(t))),
-                          _tray(t, skin, c.maxWidth, _cell * trayCells),
-                          const SizedBox(height: 6),
-                          SizedBox(height: barH, child: _powerBar(t)),
-                          const Spacer(flex: 1),
-                        ],
-                      );
-                    }),
-                  ),
-                ],
+              MaxWidth(
+                width: 620,
+                child: Column(
+                  children: [
+                    _hud(t),
+                    Expanded(
+                      child: LayoutBuilder(builder: (context, c) {
+                        // The tray is ~3.3 board cells tall; size the board so
+                        // board + tray + minimum breathing room always fit.
+                        const trayCells = 3.3;
+                        const barH = 72.0;
+                        final byHeight = (c.maxHeight - 40 - barH) /
+                            (1 + trayCells * .94 / n);
+                        final outer = math.min(c.maxWidth - 16, byHeight);
+                        final pad = outer * .03;
+                        final grid = outer - pad * 2;
+                        _cell = grid / n;
+                        _trayCell =
+                            math.min(_cell * .6, (c.maxWidth / 3 - 16) / 5);
+                        return Column(
+                          children: [
+                            const Spacer(flex: 2),
+                            _board(t, skin, outer, pad, grid),
+                            Expanded(
+                                flex: 3, child: Center(child: _armedHint(t))),
+                            _tray(t, skin, c.maxWidth, _cell * trayCells),
+                            const SizedBox(height: 6),
+                            SizedBox(height: barH, child: _powerBar(t)),
+                            const Spacer(flex: 1),
+                          ],
+                        );
+                      }),
+                    ),
+                  ],
+                ),
               ),
               if (_inTutorial) _tutorialCard(t),
               if (_inTutorial && _dragIndex == null && _flyBack == null)
@@ -1276,11 +1284,14 @@ class _GameScreenState extends State<GameScreen>
                             child: Container(
                               margin: EdgeInsets.all(_cell * .06),
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(_cell * .16),
-                                border: Border.all(color: Colors.white, width: 3),
+                                borderRadius:
+                                    BorderRadius.circular(_cell * .16),
+                                border:
+                                    Border.all(color: Colors.white, width: 3),
                                 color: Colors.white.withValues(alpha: .18),
                                 boxShadow: const [
-                                  BoxShadow(color: Color(0xAAFFFFFF), blurRadius: 12)
+                                  BoxShadow(
+                                      color: Color(0xAAFFFFFF), blurRadius: 12)
                                 ],
                               ),
                             ),
@@ -1700,7 +1711,8 @@ class _GameScreenState extends State<GameScreen>
               TextButton(
                 onPressed: () => _finishTutorial(skipped: true),
                 child: Text('Skip',
-                    style: t.body(14, color: t.subtext, weight: FontWeight.w800)),
+                    style:
+                        t.body(14, color: t.subtext, weight: FontWeight.w800)),
               ),
             ],
           ),
@@ -1712,9 +1724,13 @@ class _GameScreenState extends State<GameScreen>
   /// An animated hand showing the drag from the tray to the target.
   Widget _tutorialHand() {
     final origin = _gridOrigin();
-    final slotBox = _slotKeys[1].currentContext?.findRenderObject() as RenderBox?;
+    final slotBox =
+        _slotKeys[1].currentContext?.findRenderObject() as RenderBox?;
     final root = _rootBox;
-    if (origin == null || slotBox == null || root == null || _session.tray[1] == null) {
+    if (origin == null ||
+        slotBox == null ||
+        root == null ||
+        _session.tray[1] == null) {
       // Layout isn't ready on the very first frame; try again next frame.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() {});
@@ -1722,13 +1738,15 @@ class _GameScreenState extends State<GameScreen>
       return const SizedBox.shrink();
     }
     final piece = _step.piece;
-    final from = slotBox.localToGlobal(slotBox.size.center(Offset.zero), ancestor: root);
+    final from =
+        slotBox.localToGlobal(slotBox.size.center(Offset.zero), ancestor: root);
     // Where a finger must be for the lifted piece to land on the target.
     final to = origin +
         Offset(_step.target.x * _cell + piece.width * _cell / 2,
             _step.target.y * _cell + piece.height * _cell + _cell * .9);
     return Positioned.fill(
-      child: IgnorePointer(child: _HandHint(key: ValueKey('hand$_tutStep'), from: from, to: to)),
+      child: IgnorePointer(
+          child: _HandHint(key: ValueKey('hand$_tutStep'), from: from, to: to)),
     );
   }
 
@@ -2437,10 +2455,11 @@ class _HandHint extends StatefulWidget {
   State<_HandHint> createState() => _HandHintState();
 }
 
-class _HandHintState extends State<_HandHint> with SingleTickerProviderStateMixin {
-  late final _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1900))
-        ..repeat();
+class _HandHintState extends State<_HandHint>
+    with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1900))
+    ..repeat();
 
   @override
   void dispose() {
@@ -2456,7 +2475,11 @@ class _HandHintState extends State<_HandHint> with SingleTickerProviderStateMixi
           final move = Curves.easeInOut.transform(((v - .2) / .55).clamp(0, 1));
           final p = Offset.lerp(widget.from, widget.to, move)!;
           final pressed = v > .12 && v < .8;
-          final fade = v < .1 ? v / .1 : v > .88 ? (1 - v) / .12 : 1.0;
+          final fade = v < .1
+              ? v / .1
+              : v > .88
+                  ? (1 - v) / .12
+                  : 1.0;
           return Stack(
             children: [
               Positioned(
@@ -2469,7 +2492,9 @@ class _HandHintState extends State<_HandHint> with SingleTickerProviderStateMixi
                     child: const Icon(Icons.touch_app_rounded,
                         size: 58,
                         color: Colors.white,
-                        shadows: [Shadow(color: Colors.black54, blurRadius: 10)]),
+                        shadows: [
+                          Shadow(color: Colors.black54, blurRadius: 10)
+                        ]),
                   ),
                 ),
               ),

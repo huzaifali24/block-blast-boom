@@ -372,10 +372,14 @@ class ScreenTitle extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => ArcadeText(text,
-      size: 36,
-      colors: const [Colors.white, Color(0xFFCFD6FF)],
-      stroke: const Color(0xFF14154A));
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: ArcadeText(text,
+            size: 36,
+            colors: const [Colors.white, Color(0xFFCFD6FF)],
+            stroke: const Color(0xFF14154A)),
+      );
 }
 
 /// Small caps section label.
@@ -489,4 +493,23 @@ Future<void> openLeaderboards(BuildContext context) async {
       backgroundColor: Colors.black.withValues(alpha: .85),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ));
+}
+
+/// Centers [child] and caps its width, so phone-shaped layouts stay
+/// comfortable on tablets while backgrounds still fill the screen.
+class MaxWidth extends StatelessWidget {
+  const MaxWidth({super.key, required this.child, this.width = 560});
+  final Widget child;
+  final double width;
+
+  @override
+  // heightFactor 1: take the child's height, never grow to fill the
+  // parent (inside a bottom bar that would swallow the whole screen).
+  Widget build(BuildContext context) => Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: width),
+          child: child,
+        ),
+      );
 }

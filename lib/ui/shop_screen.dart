@@ -231,10 +231,13 @@ class _SwatchCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(label,
-                    style: theme.body(16,
-                        weight: FontWeight.w800, color: theme.text),
-                    overflow: TextOverflow.ellipsis),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(label,
+                      style: theme.body(16,
+                          weight: FontWeight.w800, color: theme.text)),
+                ),
               ),
               if (selected)
                 Text('IN USE',
