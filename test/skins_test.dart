@@ -1,9 +1,9 @@
 import 'dart:ui' as ui;
 
-import 'package:block_bloom/app/app_state.dart';
-import 'package:block_bloom/app/theme.dart';
-import 'package:block_bloom/game/board_painter.dart';
-import 'package:block_bloom/game/skins.dart';
+import 'package:block_boom/app/app_state.dart';
+import 'package:block_boom/app/theme.dart';
+import 'package:block_boom/game/board_painter.dart';
+import 'package:block_boom/game/skins.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

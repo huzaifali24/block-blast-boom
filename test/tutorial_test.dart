@@ -1,9 +1,9 @@
-import 'package:block_bloom/app/app_state.dart';
-import 'package:block_bloom/game/engine.dart';
-import 'package:block_bloom/game/game_screen.dart';
-import 'package:block_bloom/game/modes.dart';
-import 'package:block_bloom/game/session.dart';
-import 'package:block_bloom/game/tutorial.dart';
+import 'package:block_boom/app/app_state.dart';
+import 'package:block_boom/game/engine.dart';
+import 'package:block_boom/game/game_screen.dart';
+import 'package:block_boom/game/modes.dart';
+import 'package:block_boom/game/session.dart';
+import 'package:block_boom/game/tutorial.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

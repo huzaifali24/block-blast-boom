@@ -1,6 +1,6 @@
-import 'package:block_bloom/app/app_state.dart';
-import 'package:block_bloom/app/play_games.dart';
-import 'package:block_bloom/ui/widgets.dart';
+import 'package:block_boom/app/app_state.dart';
+import 'package:block_boom/app/play_games.dart';
+import 'package:block_boom/ui/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

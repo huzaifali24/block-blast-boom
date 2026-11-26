@@ -9,8 +9,8 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:block_bloom/game/board_painter.dart';
-import 'package:block_bloom/game/skins.dart';
+import 'package:block_boom/game/board_painter.dart';
+import 'package:block_boom/game/skins.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

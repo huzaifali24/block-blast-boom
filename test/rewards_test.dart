@@ -1,9 +1,9 @@
 import 'dart:math';
 
-import 'package:block_bloom/app/achievements.dart';
-import 'package:block_bloom/app/app_state.dart';
-import 'package:block_bloom/app/rewards.dart';
-import 'package:block_bloom/game/powerups.dart';
+import 'package:block_boom/app/achievements.dart';
+import 'package:block_boom/app/app_state.dart';
+import 'package:block_boom/app/rewards.dart';
+import 'package:block_boom/game/powerups.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -1,8 +1,8 @@
-import 'package:block_bloom/app/achievements.dart';
-import 'package:block_bloom/app/app_state.dart';
-import 'package:block_bloom/game/engine.dart';
-import 'package:block_bloom/game/levels.dart';
-import 'package:block_bloom/game/session.dart';
+import 'package:block_boom/app/achievements.dart';
+import 'package:block_boom/app/app_state.dart';
+import 'package:block_boom/game/engine.dart';
+import 'package:block_boom/game/levels.dart';
+import 'package:block_boom/game/session.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

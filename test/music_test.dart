@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:block_bloom/app/music.dart';
+import 'package:block_boom/app/music.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

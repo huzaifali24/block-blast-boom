@@ -1,7 +1,7 @@
-import 'package:block_bloom/app/app_state.dart';
-import 'package:block_bloom/app/rewards.dart';
-import 'package:block_bloom/ui/main_shell.dart';
-import 'package:block_bloom/ui/rewards_ui.dart';
+import 'package:block_boom/app/app_state.dart';
+import 'package:block_boom/app/rewards.dart';
+import 'package:block_boom/ui/main_shell.dart';
+import 'package:block_boom/ui/rewards_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

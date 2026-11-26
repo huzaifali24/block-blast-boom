@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:block_bloom/game/engine.dart';
+import 'package:block_boom/game/engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

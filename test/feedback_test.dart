@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:block_bloom/app/app_state.dart';
-import 'package:block_bloom/app/haptics.dart';
-import 'package:block_bloom/app/sound.dart';
+import 'package:block_boom/app/app_state.dart';
+import 'package:block_boom/app/haptics.dart';
+import 'package:block_boom/app/sound.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

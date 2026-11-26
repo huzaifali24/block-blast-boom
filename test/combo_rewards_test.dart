@@ -1,4 +1,4 @@
-import 'package:block_bloom/game/engine.dart';
+import 'package:block_boom/game/engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 PlacementResult r({int lines = 1, int combo = 1, bool allClear = false}) =>

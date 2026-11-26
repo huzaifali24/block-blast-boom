@@ -83,7 +83,7 @@ lib/app/    app state and progress, ads, store, Play Games, reminders,
 lib/ui/     splash, shell, home, shop and profile screens
 test/       unit tests
 store/      Play Store listing text and graphics
-privacy/    privacy policy page
+docs/       privacy policy (GitHub Pages)
 ```
 
 ## Contributing

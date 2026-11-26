@@ -26,7 +26,7 @@ if (secretsFile.exists()) {
 }
 
 android {
-    namespace = "com.kodexsolutions.block_bloom"
+    namespace = "com.kodexsolutions.blockboom"
     compileSdk = 37
 
     buildFeatures {
@@ -42,7 +42,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.kodexsolutions.block_bloom"
+        applicationId = "com.kodexsolutions.blockboom"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

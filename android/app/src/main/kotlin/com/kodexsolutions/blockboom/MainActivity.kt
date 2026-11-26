@@ -1,4 +1,4 @@
-package com.kodexsolutions.block_bloom
+package com.kodexsolutions.blockboom
 
 import android.os.Bundle
 import com.google.android.gms.games.PlayGamesSdk

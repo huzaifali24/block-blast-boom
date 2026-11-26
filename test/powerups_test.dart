@@ -1,5 +1,5 @@
-import 'package:block_bloom/game/engine.dart';
-import 'package:block_bloom/game/session.dart';
+import 'package:block_boom/game/engine.dart';
+import 'package:block_boom/game/session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 GameSession fullBoardSession({int leaveEmpty = 0}) {
