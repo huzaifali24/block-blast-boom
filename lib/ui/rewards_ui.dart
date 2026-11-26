@@ -53,7 +53,8 @@ Future<void> showLoginCalendar(BuildContext context) => showDialog<void>(
       builder: (_) => const Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.symmetric(horizontal: 18),
-        child: _LoginCalendar(),
+        // Scales down rather than overflowing on short screens.
+        child: FittedBox(fit: BoxFit.scaleDown, child: SizedBox(width: 360, child: _LoginCalendar())),
       ),
     );
 
@@ -235,13 +236,19 @@ class _Label extends StatelessWidget {
 
 // ------------------------------------------------------------ lucky wheel
 
-Future<void> showLuckyWheel(BuildContext context) => showDialog<void>(
+/// [useRootNavigator] false shows it in the nearest navigator instead of
+/// over the whole app (used to frame it in store screenshots).
+Future<void> showLuckyWheel(BuildContext context,
+        {bool useRootNavigator = true}) =>
+    showDialog<void>(
       context: context,
+      useRootNavigator: useRootNavigator,
       barrierColor: Colors.black.withValues(alpha: .7),
       builder: (_) => const Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.symmetric(horizontal: 18),
-        child: _Wheel(),
+        // Scales down rather than overflowing on short screens.
+        child: FittedBox(fit: BoxFit.scaleDown, child: SizedBox(width: 360, child: _Wheel())),
       ),
     );
 
