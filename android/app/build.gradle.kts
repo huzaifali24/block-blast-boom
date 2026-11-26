@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.util.Base64
 
 plugins {
     id("com.android.application")
@@ -95,4 +96,36 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("com.google.android.gms:play-services-games-v2:21.0.0")
+}
+
+// Launch guard: the Play upload bundle (bundleRelease) must carry real IDs,
+// never Google's test ads or a missing upload key. Debug builds and the
+// sideload APK (assembleRelease) are unaffected.
+gradle.taskGraph.whenReady {
+    if (allTasks.none { it.name == "bundleRelease" }) return@whenReady
+    val problems = mutableListOf<String>()
+    if (!keystorePropertiesFile.exists()) {
+        problems += "android/key.properties (upload key) is missing"
+    }
+    val admob = secrets.getProperty("admobAppId", "")
+    if (admob.isEmpty() || admob.startsWith("ca-app-pub-3940256099942544")) {
+        problems += "android/secrets.properties needs your real admobAppId"
+    }
+    if (secrets.getProperty("playGamesProjectId", "0") == "0") {
+        problems += "android/secrets.properties needs your playGamesProjectId"
+    }
+    // Flutter hands --dart-define values to Gradle base64-encoded.
+    val defines = (project.findProperty("dart-defines") as String? ?: "")
+        .split(",").filter { it.isNotBlank() }
+        .map { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }
+        .associate { it.substringBefore("=") to it.substringAfter("=", "") }
+    for (key in listOf("ADMOB_REWARDED", "ADMOB_INTERSTITIAL", "PGS_LB_CLASSIC")) {
+        if (defines[key].isNullOrEmpty()) {
+            problems += "$key is empty (build with --dart-define-from-file=secrets.json)"
+        }
+    }
+    if (problems.isNotEmpty()) {
+        throw GradleException(
+            "Not building the Play upload bundle:\n - " + problems.joinToString("\n - "))
+    }
 }
